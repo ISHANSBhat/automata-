@@ -1,0 +1,9 @@
+backend/out
+.git
+.gitignore
+.dockerignore
+Dockerfile
+build.bat
+run.bat
+*.md
+.gemini
