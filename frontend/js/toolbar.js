@@ -13,7 +13,7 @@ const Toolbar = (() => {
         't': 'ADD_TRANSITION',
         'i': 'TOGGLE_START',
         'f': 'TOGGLE_FINAL',
-        'd': 'DELETE',
+        'd': 'DELETE'
     };
 
     function init() {
@@ -35,6 +35,14 @@ const Toolbar = (() => {
         document.addEventListener('keydown', (e) => {
             // Don't trigger shortcuts when typing in input fields
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.key.toLowerCase() === 'q') {
+                e.preventDefault();
+                if (typeof Canvas !== 'undefined' && Canvas.renameSelectedNode) {
+                    Canvas.renameSelectedNode();
+                }
+                return;
+            }
 
             const mode = SHORTCUTS[e.key.toLowerCase()];
             if (mode) {

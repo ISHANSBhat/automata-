@@ -723,6 +723,20 @@ const Canvas = (() => {
         inputEl.addEventListener('keydown', onKeydown);
     }
 
+    function renameSelectedNode() {
+        if (!cy) return;
+        const selectedNodes = cy.$('node.state-node:selected');
+        if (selectedNodes.length === 1) {
+            const node = selectedNodes[0];
+            showModal('Rename State', 'Enter a new name:', node.data('name'), (newName) => {
+                if (newName && newName.trim()) {
+                    node.data('name', newName.trim());
+                    notifyChange();
+                }
+            });
+        }
+    }
+
     return {
         init,
         serializeAutomaton,
@@ -732,5 +746,6 @@ const Canvas = (() => {
         clearHighlights,
         getCy,
         addTransition,
+        renameSelectedNode,
     };
 })();
