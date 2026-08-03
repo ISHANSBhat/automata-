@@ -1,4 +1,4 @@
-# 🤖 Automata Visualizer & Converter
+# Automata Visualizer & Converter
 
 An interactive web application and algorithm visualization engine for **Deterministic Finite Automata (DFA)**, **Non-Deterministic Finite Automata (NFA)**, **Epsilon-NFA ($\varepsilon$-NFA)**, and **Regular Expressions**.
 
@@ -6,20 +6,20 @@ Built with a high-performance **Java 21 backend** (zero external framework depen
 
 ---
 
-## ✨ Features
+## Features
 
-- 🎨 **Interactive Automata Builder**: Graphically design, place states, toggle initial/accept states, and draw transitions.
-- ⚡ **Step-by-Step Simulation**: Simulates input string processing across DFA, NFA, and $\varepsilon$-NFA with step logging and real-time active state highlighting.
-- 🔄 **Automated Algorithm Conversions**:
+- **Interactive Automata Builder**: Graphically design, place states, toggle initial/accept states, and draw transitions.
+- **Step-by-Step Simulation**: Simulates input string processing across DFA, NFA, and $\varepsilon$-NFA with step logging and real-time active state highlighting.
+- **Automated Algorithm Conversions**:
   - **Thompson's Construction**: Convert Regular Expressions to equivalent $\varepsilon$-NFA graphs.
   - **Subset Construction (Powerset Algorithm)**: Convert NFA / $\varepsilon$-NFA to minimal equivalent DFA.
   - **Hopcroft State Minimization**: Minimize DFAs by partitioning indistinguishable states.
   - **State Elimination Algorithm**: Extract equivalent Regular Expressions from finite automata via Arden's Lemma.
-- 🚀 **Cloud & Container Ready**: Out-of-the-box support for Docker multi-stage builds and Render cloud deployment.
+- **Cloud & Container Ready**: Out-of-the-box support for Docker multi-stage builds and Render cloud deployment.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Backend**: Java 21 (using native `com.sun.net.httpserver` with custom JSON parsing & zero third-party dependencies).
 - **Frontend**: HTML5 Canvas, Vanilla CSS3, JavaScript ES6+ (Modular architecture).
@@ -28,7 +28,7 @@ Built with a high-performance **Java 21 backend** (zero external framework depen
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 NFA-DFA_Visualizer/
@@ -57,7 +57,7 @@ NFA-DFA_Visualizer/
 
 ---
 
-## 🚀 API Endpoints
+## API Endpoints
 
 The backend exposes three stateless REST endpoints (`POST` request with JSON payload):
 
@@ -69,7 +69,7 @@ The backend exposes three stateless REST endpoints (`POST` request with JSON pay
 
 ---
 
-## 💻 Local Setup & Execution
+## Local Setup & Execution
 
 ### Prerequisites
 - **Java 21 JDK** (or later) installed and configured on your `PATH`.
@@ -100,7 +100,7 @@ java -cp backend/out automata.server.AutomataServer
 
 ---
 
-## 🐳 Docker Setup
+## Docker Setup
 
 ### 1. Build Docker Image
 ```bash
@@ -115,7 +115,7 @@ Access the application at `http://localhost:8080`.
 
 ---
 
-## ☁️ Deploying to Render
+## Deploying to Render
 
 This project is pre-configured for automatic deployment on **Render**:
 
