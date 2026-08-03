@@ -85,8 +85,8 @@ public class AlgorithmVerification {
         nfa1.addState(new State("q1", "q1", false, false));
         nfa1.addState(new State("q2", "q2", false, false));
         nfa1.addState(new State("q3", "q3", false, true));
-        nfa1.addTransition(new Transition("q0", "q1", "a"));  // branch 1 (dead end)
-        nfa1.addTransition(new Transition("q0", "q2", "a"));  // branch 2
+        nfa1.addTransition(new Transition("q0", "q1", "a")); // branch 1 (dead end)
+        nfa1.addTransition(new Transition("q0", "q2", "a")); // branch 2
         nfa1.addTransition(new Transition("q2", "q3", "b"));
         nfa1.setStartStateId("q0");
         nfa1.addFinalStateId("q3");
@@ -101,9 +101,9 @@ public class AlgorithmVerification {
         // but only through multi-branch tracking
         Automaton nfa2 = new Automaton();
         nfa2.addState(new State("s0", "s0", true, false));
-        nfa2.addState(new State("s1", "s1", false, false));  // odd count branch
-        nfa2.addState(new State("s2", "s2", false, true));   // even count branch (final)
-        nfa2.addState(new State("s3", "s3", false, true));   // any-a branch (final)
+        nfa2.addState(new State("s1", "s1", false, false)); // odd count branch
+        nfa2.addState(new State("s2", "s2", false, true)); // even count branch (final)
+        nfa2.addState(new State("s3", "s3", false, true)); // any-a branch (final)
         // Branch 1: even-length 'a' strings: s0 -a-> s1 -a-> s2, s2 -a-> s1 (loop)
         nfa2.addTransition(new Transition("s0", "s1", "a"));
         nfa2.addTransition(new Transition("s1", "s2", "a"));
@@ -289,7 +289,7 @@ public class AlgorithmVerification {
 
         // Roundtrip: parse the derived regex back through Thompson's and verify
         // language equivalence via representative test strings
-        String[] testStrings = {"", "b", "a", "ab", "aab", "aba", "aabaa", "ba", "bb", "aabb"};
+        String[] testStrings = { "", "b", "a", "ab", "aab", "aba", "aabaa", "ba", "bb", "aabb" };
 
         try {
             StepLogger.ThompsonResult nfaResult = ThompsonsConstruction.build(result.regex());
@@ -301,7 +301,7 @@ public class AlgorithmVerification {
                 try {
                     dfaAccepts = SimulationEngine.simulateDFA(dfa, test).accepted();
                 } catch (Exception e) {
-                    dfaAccepts = false;  // dead state = reject
+                    dfaAccepts = false; // dead state = reject
                 }
 
                 // Round-tripped NFA result
@@ -326,10 +326,10 @@ public class AlgorithmVerification {
 
         // Build a DFA with redundant states:
         // q0 (start) --a--> q1 --b--> q2 (final)
-        // q0         --b--> q3 --a--> q4 (dead end, no final)
+        // q0 --b--> q3 --a--> q4 (dead end, no final)
         // q3 and q4 are equivalent (both non-final dead ends)
         // But more useful: build a DFA where subset construction has extra states
-        
+
         // Build a DFA with equivalent states that should be merged:
         // q0 (start), q1, q2 (final), q3 (final)
         // q2 and q3 have identical transitions and are both final → should merge
@@ -358,7 +358,7 @@ public class AlgorithmVerification {
         check("minimized has fewer states", afterSize < beforeSize, true);
 
         // Verify the minimized DFA accepts/rejects the same strings
-        String[] tests = {"", "a", "b", "ab", "aab", "bab", "ba", "abb"};
+        String[] tests = { "", "a", "b", "ab", "aab", "bab", "ba", "abb" };
         for (String test : tests) {
             boolean originalAccepts;
             try {
@@ -404,15 +404,21 @@ public class AlgorithmVerification {
         check("minimized <= raw size", minSize <= rawSize, true);
 
         // Verify language equivalence
-        String[] tests = {"abb", "aabb", "babb", "aab", "", "ab", "bbb", "ababb"};
+        String[] tests = { "abb", "aabb", "babb", "aab", "", "ab", "bbb", "ababb" };
         for (String test : tests) {
             boolean rawAccepts;
-            try { rawAccepts = SimulationEngine.simulateDFA(rawDFA, test).accepted(); }
-            catch (Exception e) { rawAccepts = false; }
+            try {
+                rawAccepts = SimulationEngine.simulateDFA(rawDFA, test).accepted();
+            } catch (Exception e) {
+                rawAccepts = false;
+            }
 
             boolean minAccepts;
-            try { minAccepts = SimulationEngine.simulateDFA(minDFA, test).accepted(); }
-            catch (Exception e) { minAccepts = false; }
+            try {
+                minAccepts = SimulationEngine.simulateDFA(minDFA, test).accepted();
+            } catch (Exception e) {
+                minAccepts = false;
+            }
 
             check("convert-min '" + test + "' match", minAccepts, rawAccepts);
         }
@@ -445,7 +451,8 @@ public class AlgorithmVerification {
         }
 
         // Bug 2: Single-operand collapse doesn't happen before star-unfold
-        // Union(ε, a·a*) should become a* via star-unfold, not collapse to ε prematurely
+        // Union(ε, a·a*) should become a* via star-unfold, not collapse to ε
+        // prematurely
         {
             RegexNode a = new RegexNode.Lit("a");
             RegexNode aStar = RegexNode.star(a);
