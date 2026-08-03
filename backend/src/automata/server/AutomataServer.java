@@ -18,7 +18,7 @@ public class AutomataServer {
 
     public static void main(String[] args) throws IOException {
         String envPort = System.getenv("PORT");
-        int port = (envPort != null && !envPort.isBlank()) ? Integer.parseInt(envPort) : 8080;
+        int port = (envPort != null && !envPort.isBlank()) ? Integer.parseInt(envPort) : 12000;
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-mode="DFA">
 
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
         rel="stylesheet">
 
     <!-- Cytoscape.js -->
@@ -79,10 +79,9 @@
     <input type="file" id="file-import" accept=".json" style="display:none">
 
     <!-- ===== Main Layout ===== -->
-    <main id="app-layout">
-
-        <!-- Left Sidebar: Tools -->
-        <aside id="sidebar-left" class="sidebar glass-panel">
+    <div id="app-layout">
+        <!-- ===== Left Sidebar (Tools) ===== -->
+        <aside id="sidebar-left" class="sidebar sidebar-open">
             <div class="panel-section">
                 <h3 class="panel-title">Tools</h3>
                 <div class="tool-group" id="tool-buttons">
@@ -133,6 +132,12 @@
                         </svg>
                         <span>Delete</span>
                     </button>
+                    <button class="tool-btn sidebar-toggle" id="sidebar-toggle-btn">
+                        <svg class="toggle-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                    </button>
                 </div>
             </div>
 
@@ -144,12 +149,13 @@
                         autocomplete="off">
                     <button class="accent-btn" id="btn-build-nfa">Build ε-NFA</button>
                 </div>
-                <p class="help-text">Operators: <code>|</code> union, <code>*</code> star, <code>+</code> plus,
-                    <code>?</code> optional, <code>()</code> group
+                <p class="help-text">Operators:<br> <code>|</code> union<br> <code>*</code> star<br> <code>+</code>
+                    plus<br>
+                    <code>?</code> optional<br> <code>()</code> group
                 </p>
             </div>
 
-            <div class="panel-section">
+            <div class="panel-section" id="help-section">
                 <h3 class="panel-title">Help</h3>
                 <div class="help-shortcuts">
                     <kbd>V</kbd> Select &nbsp; <br><kbd>S</kbd> Add State &nbsp; <br><kbd>T</kbd> Transition<br>
@@ -171,7 +177,10 @@
         </section>
 
         <!-- Right Sidebar: Info Panels -->
-        <aside id="sidebar-right" class="sidebar glass-panel">
+        <aside id="sidebar-right">
+            <!-- Drag Handle on canvas-facing edge -->
+            <div id="panel-resize-handle" class="panel-resize-handle" title="Drag to resize panel"></div>
+
             <!-- String Tester -->
             <div class="panel-section">
                 <h3 class="panel-title">String Tester</h3>
@@ -201,8 +210,11 @@
             </div>
 
             <!-- Transition Table -->
-            <div class="panel-section">
-                <h3 class="panel-title">Transition Table</h3>
+            <div class="panel-section" id="table-section">
+                <h3 class="panel-title expandable-title" id="title-transition-table" title="Click to enlarge in modal">
+                    <span>Transition Table</span>
+                    <span class="expand-icon" title="Enlarge">⤢</span>
+                </h3>
                 <div id="transition-table-container" class="table-container">
                     <p class="help-text">Add states and transitions to see the table</p>
                 </div>
@@ -210,27 +222,29 @@
 
             <!-- Step-by-Step Log -->
             <div class="panel-section" id="steps-section" style="display:none">
-                <h3 class="panel-title">
-                    Algorithm Steps
-                    <button class="small-btn" id="btn-close-steps" title="Close">✕</button>
+                <h3 class="panel-title expandable-title" id="title-algorithm-steps" title="Click to enlarge in modal">
+                    <span>Algorithm Steps</span>
+                    <div class="title-actions">
+                        <span class="expand-icon" title="Enlarge">⤢</span>
+                    </div>
                 </h3>
                 <div id="steps-container" class="steps-container">
                 </div>
-                <div class="steps-nav" id="steps-nav">
+                <!-- <div class="steps-nav" id="steps-nav">
                     <button class="small-btn" id="btn-step-prev" title="Previous Step">◂ Prev</button>
                     <span id="step-counter" class="step-counter">0 / 0</span>
                     <button class="small-btn" id="btn-step-next" title="Next Step">Next ▸</button>
-                </div>
+                </div> -->
             </div>
         </aside>
-    </main>
+    </div>
 
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
     <!-- Transition Symbol Prompt Modal -->
     <div id="modal-overlay" class="modal-overlay hidden">
-        <div class="modal glass-panel">
+        <div class="modal">
             <h3 id="modal-title">Transition Symbol</h3>
             <p id="modal-description">Enter the transition symbol(s):</p>
             <input type="text" id="modal-input" placeholder="e.g. a" spellcheck="false" autocomplete="off">
@@ -238,6 +252,17 @@
                 <button class="small-btn" id="modal-cancel">Cancel</button>
                 <button class="accent-btn" id="modal-confirm">Add</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Enlarge Section Modal Overlay -->
+    <div id="enlarge-modal-overlay" class="enlarge-modal-overlay hidden">
+        <div class="enlarge-modal">
+            <div class="enlarge-modal-header">
+                <h2 id="enlarge-modal-title">Title</h2>
+                <button class="enlarge-modal-close" id="enlarge-modal-close" title="Close (Esc)">✕</button>
+            </div>
+            <div id="enlarge-modal-body" class="enlarge-modal-body"></div>
         </div>
     </div>
 

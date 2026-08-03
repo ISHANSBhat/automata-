@@ -13,6 +13,15 @@ const App = (() => {
         Simulator.init();
         Stepper.init();
 
+        // Sidebar toggle (click-based, no hover)
+        initSidebarToggle();
+
+        // Resizable right panel
+        initPanelResize();
+
+        // Enlarge modals for sections
+        initEnlargeModals();
+
         // Mode selector
         initModeSelector();
 
@@ -83,6 +92,9 @@ const App = (() => {
     }
 
     function updateModeUI() {
+        // Update data-mode attribute on HTML for CSS accent palette
+        document.documentElement.dataset.mode = currentMode;
+
         // Show/hide regex section
         const regexSection = document.getElementById('regex-section');
         const toolButtons = document.getElementById('tool-buttons');
@@ -94,10 +106,7 @@ const App = (() => {
             regexSection.style.display = currentMode === 'REGEX' ? 'block' : 'none';
         }
 
-        // In Regex mode, hide editing tools (user builds via regex, not canvas)
-        if (toolButtons) {
-            toolButtons.style.display = currentMode === 'REGEX' ? 'none' : 'flex';
-        }
+        // All modes share the same tool buttons — no longer hidden in Regex mode
 
         // Convert-to-DFA button: label and visibility
         if (convertBtn) {
@@ -129,6 +138,26 @@ const App = (() => {
 
         // Fire event for other modules
         document.dispatchEvent(new CustomEvent('mode-changed', { detail: { mode: currentMode } }));
+    }
+
+    // =========================================================================
+    // Sidebar Toggle (click-based)
+    // =========================================================================
+
+    function initSidebarToggle() {
+        const sidebar = document.getElementById('sidebar-left');
+        const toggleBtn = document.getElementById('sidebar-toggle-btn');
+        if (!sidebar || !toggleBtn) return;
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Don't trigger tool selection
+            const isOpen = sidebar.classList.toggle('sidebar-open');
+            // Flip arrow direction: ← when open, → when collapsed
+            const arrow = toggleBtn.querySelector('.toggle-arrow');
+            if (arrow) {
+                arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        });
     }
 
     function getMode() {
@@ -347,6 +376,175 @@ const App = (() => {
             btn.disabled = false;
             btn.textContent = 'Build ε-NFA';
         }
+    }
+
+    // =========================================================================
+    // Resizable Right Panel
+    // =========================================================================
+
+    function initPanelResize() {
+        const handle = document.getElementById('panel-resize-handle');
+        const sidebarRight = document.getElementById('sidebar-right');
+        if (!handle || !sidebarRight) return;
+
+        // Restore persisted width from localStorage if available
+        const savedWidth = localStorage.getItem('rightPanelWidth');
+        if (savedWidth) {
+            const parsedWidth = parseInt(savedWidth, 10);
+            if (!isNaN(parsedWidth) && parsedWidth >= 280) {
+                document.documentElement.style.setProperty('--right-panel-width', `${parsedWidth}px`);
+                setTimeout(() => Canvas.getCy()?.resize(), 50);
+            }
+        }
+
+        let isResizing = false;
+        let animationFrameId = null;
+
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isResizing = true;
+            handle.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+
+            let currentClampedWidth = 320;
+
+            const onMouseMove = (moveEvent) => {
+                if (!isResizing) return;
+
+                const viewportWidth = window.innerWidth;
+                const mouseX = moveEvent.clientX;
+                const newWidth = viewportWidth - mouseX;
+
+                const minWidth = 280;
+                const maxWidth = Math.floor(viewportWidth * 0.60); // max ~55-60vw
+
+                currentClampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+
+                // Throttle via rAF
+                animationFrameId = requestAnimationFrame(() => {
+                    document.documentElement.style.setProperty('--right-panel-width', `${currentClampedWidth}px`);
+                    if (typeof Canvas !== 'undefined' && Canvas.getCy()) {
+                        Canvas.getCy().resize();
+                    }
+                });
+            };
+
+            const onMouseUp = () => {
+                if (!isResizing) return;
+                isResizing = false;
+                handle.classList.remove('active');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+
+                // Final fit and save to localStorage
+                document.documentElement.style.setProperty('--right-panel-width', `${currentClampedWidth}px`);
+                localStorage.setItem('rightPanelWidth', currentClampedWidth.toString());
+                if (typeof Canvas !== 'undefined' && Canvas.getCy()) {
+                    Canvas.getCy().resize();
+                }
+            };
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+        });
+    }
+
+    // =========================================================================
+    // Modal Enlarge for Transition Table & Algorithm Steps
+    // =========================================================================
+
+    function initEnlargeModals() {
+        const titleTable = document.getElementById('title-transition-table');
+        const titleSteps = document.getElementById('title-algorithm-steps');
+        const overlay = document.getElementById('enlarge-modal-overlay');
+        const modalTitle = document.getElementById('enlarge-modal-title');
+        const modalBody = document.getElementById('enlarge-modal-body');
+        const closeBtn = document.getElementById('enlarge-modal-close');
+
+        if (!overlay || !modalTitle || !modalBody || !closeBtn) return;
+
+        let activeSection = null; // 'table' | 'steps' | null
+
+        function openModal(section) {
+            activeSection = section;
+
+            if (section === 'table') {
+                modalTitle.textContent = 'Transition Table';
+                const tableContainer = document.getElementById('transition-table-container');
+                if (tableContainer) {
+                    modalBody.appendChild(tableContainer);
+                }
+            } else if (section === 'steps') {
+                modalTitle.textContent = 'Algorithm Steps';
+                const stepsContainer = document.getElementById('steps-container');
+                // const stepsNav = document.getElementById('steps-nav');
+                if (stepsContainer) modalBody.appendChild(stepsContainer);
+                // if (stepsNav) modalBody.appendChild(stepsNav);
+            }
+
+            overlay.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            if (!activeSection) return;
+
+            if (activeSection === 'table') {
+                const tableSection = document.getElementById('table-section');
+                const tableContainer = document.getElementById('transition-table-container');
+                if (tableSection && tableContainer) {
+                    tableSection.appendChild(tableContainer);
+                }
+            } else if (activeSection === 'steps') {
+                const stepsSection = document.getElementById('steps-section');
+                const stepsContainer = document.getElementById('steps-container');
+                // const stepsNav = document.getElementById('steps-nav');
+                if (stepsSection && stepsContainer) {
+                    // Insert stepsContainer before stepsNav or append both
+                    stepsSection.appendChild(stepsContainer);
+                    // if (stepsNav) stepsSection.appendChild(stepsNav);
+                }
+            }
+
+            activeSection = null;
+            overlay.classList.add('hidden');
+        }
+
+        if (titleTable) {
+            titleTable.addEventListener('click', () => openModal('table'));
+        }
+
+        if (titleSteps) {
+            titleSteps.addEventListener('click', (e) => {
+                // Ignore if clicked on close button inside the title
+                if (e.target.closest('#btn-close-steps')) return;
+                openModal('steps');
+            });
+        }
+
+        closeBtn.addEventListener('click', closeModal);
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
+                closeModal();
+            }
+        });
     }
 
     // =========================================================================

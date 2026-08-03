@@ -138,6 +138,25 @@ const Canvas = (() => {
         cy.on('add remove', () => {
             updateEmptyState();
         });
+
+        // Debounced resize handler — keep Cytoscape in sync with container size
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (cy) {
+                    cy.resize();
+                    cy.fit(undefined, 30);
+                }
+            }, 150);
+        });
+
+        // Mode-change listener — re-apply Cytoscape styles with new accent color
+        document.addEventListener('mode-changed', () => {
+            if (cy) {
+                cy.style(getCytoscapeStyle());
+            }
+        });
     }
 
     // =========================================================================
@@ -145,6 +164,14 @@ const Canvas = (() => {
     // =========================================================================
 
     function getCytoscapeStyle() {
+        const style = getComputedStyle(document.body);
+        const accent = style.getPropertyValue('--accent').trim() || '#ff90e8';
+        const bg = style.getPropertyValue('--bg').trim() || '#15151a';
+        const surface = style.getPropertyValue('--surface').trim() || '#1e1e26';
+        const border = style.getPropertyValue('--border').trim() || '#f4f2ec';
+        const textPrimary = style.getPropertyValue('--text-primary').trim() || '#f4f2ec';
+        const textSecondary = style.getPropertyValue('--text-secondary').trim() || '#9a9aa5';
+
         return [
             // --- Normal states ---
             {
@@ -155,16 +182,16 @@ const Canvas = (() => {
                     'text-halign': 'center',
                     'font-family': "'Inter', sans-serif",
                     'font-size': '13px',
-                    'font-weight': '600',
-                    'color': '#f1f5f9',
-                    'text-outline-color': '#0a0e1a',
+                    'font-weight': '700',
+                    'color': textPrimary,
+                    'text-outline-color': surface,
                     'text-outline-width': '2px',
                     'width': '54px',
                     'height': '54px',
-                    'background-color': '#0f172a',
-                    'border-width': '2.5px',
-                    'border-color': '#38bdf8',
-                    'border-opacity': 0.8,
+                    'background-color': surface,
+                    'border-width': '3px',
+                    'border-color': border,
+                    'border-opacity': 1,
                     'shape': 'ellipse',
                     'overlay-opacity': 0,
                     'transition-property': 'border-color, border-width, background-color, width, height',
@@ -176,12 +203,12 @@ const Canvas = (() => {
                 selector: 'node.state-node[?isFinal]',
                 style: {
                     'border-width': '3px',
-                    'border-color': '#c084fc',
-                    'background-color': '#0f172a',
+                    'border-color': border,
+                    'background-color': surface,
                     'outline-width': '3px',
-                    'outline-color': '#c084fc',
-                    'outline-opacity': 0.5,
-                    'outline-offset': '3px',
+                    'outline-color': border,
+                    'outline-opacity': 1,
+                    'outline-offset': '4px',
                     'outline-style': 'solid',
                 },
             },
@@ -189,7 +216,7 @@ const Canvas = (() => {
             {
                 selector: 'node.state-node[?isStart]',
                 style: {
-                    'border-color': '#38bdf8',
+                    'border-color': accent,
                     'border-width': '3px',
                 },
             },
@@ -197,12 +224,12 @@ const Canvas = (() => {
             {
                 selector: 'node.state-node[?isStart][?isFinal]',
                 style: {
-                    'border-color': '#38bdf8',
+                    'border-color': accent,
                     'border-width': '3px',
                     'outline-width': '3px',
-                    'outline-color': '#c084fc',
-                    'outline-opacity': 0.5,
-                    'outline-offset': '3px',
+                    'outline-color': border,
+                    'outline-opacity': 1,
+                    'outline-offset': '4px',
                     'outline-style': 'solid',
                 },
             },
@@ -210,9 +237,9 @@ const Canvas = (() => {
             {
                 selector: 'node.state-node:selected',
                 style: {
-                    'border-color': '#38bdf8',
-                    'border-width': '3px',
-                    'background-color': 'rgba(56, 189, 248, 0.1)',
+                    'border-color': accent,
+                    'border-width': '4px',
+                    'background-color': getAccentSoft(),
                 },
             },
             // --- Start indicator arrow node (invisible) ---
@@ -232,9 +259,9 @@ const Canvas = (() => {
             {
                 selector: 'edge.start-arrow',
                 style: {
-                    'width': 2,
-                    'line-color': '#38bdf8',
-                    'target-arrow-color': '#38bdf8',
+                    'width': 2.5,
+                    'line-color': accent,
+                    'target-arrow-color': accent,
                     'target-arrow-shape': 'triangle',
                     'curve-style': 'straight',
                     'arrow-scale': 1.2,
@@ -249,16 +276,16 @@ const Canvas = (() => {
                     'label': 'data(symbol)',
                     'font-family': "'JetBrains Mono', monospace",
                     'font-size': '12px',
-                    'font-weight': '500',
-                    'color': '#e2e8f0',
-                    'text-background-color': '#0a0e1a',
-                    'text-background-opacity': 0.85,
+                    'font-weight': '600',
+                    'color': textPrimary,
+                    'text-background-color': bg,
+                    'text-background-opacity': 0.9,
                     'text-background-padding': '3px',
                     'text-background-shape': 'roundrectangle',
                     'text-rotation': 'autorotate',
-                    'width': 2,
-                    'line-color': '#475569',
-                    'target-arrow-color': '#64748b',
+                    'width': 2.5,
+                    'line-color': textSecondary,
+                    'target-arrow-color': textSecondary,
                     'target-arrow-shape': 'triangle',
                     'arrow-scale': 1.1,
                     'curve-style': 'bezier',
@@ -282,8 +309,8 @@ const Canvas = (() => {
             {
                 selector: 'edge.transition:selected',
                 style: {
-                    'line-color': '#38bdf8',
-                    'target-arrow-color': '#38bdf8',
+                    'line-color': accent,
+                    'target-arrow-color': accent,
                     'width': 3,
                 },
             },
@@ -291,16 +318,16 @@ const Canvas = (() => {
             {
                 selector: 'node.highlighted',
                 style: {
-                    'background-color': 'rgba(56, 189, 248, 0.2)',
-                    'border-color': '#38bdf8',
+                    'background-color': getAccentSoft(),
+                    'border-color': accent,
                     'border-width': '4px',
                 },
             },
             {
                 selector: 'edge.highlighted',
                 style: {
-                    'line-color': '#38bdf8',
-                    'target-arrow-color': '#38bdf8',
+                    'line-color': accent,
+                    'target-arrow-color': accent,
                     'width': 3,
                 },
             },
@@ -308,7 +335,7 @@ const Canvas = (() => {
             {
                 selector: '.eh-handle',
                 style: {
-                    'background-color': '#38bdf8',
+                    'background-color': accent,
                     'width': 10,
                     'height': 10,
                     'shape': 'ellipse',
@@ -319,26 +346,30 @@ const Canvas = (() => {
             {
                 selector: '.eh-source, .eh-target',
                 style: {
-                    'border-color': '#38bdf8',
+                    'border-color': accent,
                     'border-width': '3px',
                 },
             },
             {
                 selector: '.eh-ghost-edge',
                 style: {
-                    'line-color': '#38bdf8',
-                    'target-arrow-color': '#38bdf8',
+                    'line-color': accent,
+                    'target-arrow-color': accent,
                     'opacity': 0.5,
                 },
             },
             {
                 selector: '.eh-preview',
                 style: {
-                    'line-color': '#38bdf8',
-                    'target-arrow-color': '#38bdf8',
+                    'line-color': accent,
+                    'target-arrow-color': accent,
                 },
             },
         ];
+    }
+
+    function getAccentSoft() {
+        return getComputedStyle(document.body).getPropertyValue('--accent-soft').trim() || '#ffd6f5';
     }
 
     // =========================================================================

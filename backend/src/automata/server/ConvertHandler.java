@@ -5,11 +5,15 @@ import com.sun.net.httpserver.HttpHandler;
 import automata.model.Automaton;
 import automata.engine.SubsetConstruction;
 import automata.engine.StateElimination;
+import automata.engine.DFAMinimization;
 import automata.engine.StepLogger.ConversionResult;
+import automata.engine.StepLogger.ConversionStep;
 import automata.util.JsonUtil;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,7 +56,21 @@ public class ConvertHandler implements HttpHandler {
             } else {
                 // Subset construction: NFA/ε-NFA → DFA
                 ConversionResult result = SubsetConstruction.convert(automaton, type);
-                sendJson(exchange, 200, result.toJson());
+
+                // Minimize the resulting DFA
+                automata.model.Automaton minimized = DFAMinimization.minimize(result.resultDFA());
+
+                // Append minimization step
+                List<ConversionStep> allSteps = new ArrayList<>(result.steps());
+                allSteps.add(new ConversionStep(
+                        allSteps.size() + 1,
+                        java.util.Set.of(),
+                        "",
+                        "Minimized DFA: " + result.resultDFA().getStates().size() +
+                                " → " + minimized.getStates().size() + " states"));
+
+                ConversionResult minimizedResult = new ConversionResult(minimized, allSteps);
+                sendJson(exchange, 200, minimizedResult.toJson());
             }
 
         } catch (IllegalArgumentException e) {

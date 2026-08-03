@@ -9,7 +9,8 @@ COPY backend/src backend/src
 
 # Compile the Java backend files to backend/out
 RUN mkdir -p backend/out && \
-    javac -d backend/out $(find backend/src -name "*.java")
+    find backend/src -name "*.java" > sources.txt && \
+    javac -d backend/out @sources.txt
 
 # Stage 2: Minimal runtime image
 FROM eclipse-temurin:21-jre-alpine
@@ -24,8 +25,8 @@ COPY --from=builder /app/backend/out backend/out
 # The Java server looks for "frontend" relative to user.dir
 COPY frontend frontend
 
-# Expose the port (Render will dynamically assign a port via the PORT env var)
-# We expose 8080 as a default local fallback
+# Default port configuration (matches EXPOSE)
+ENV PORT=8080
 EXPOSE 8080
 
 # Run the Java server

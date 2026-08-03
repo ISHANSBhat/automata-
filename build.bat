@@ -15,7 +15,10 @@ javac -d "backend\out" ^
   "backend\src\automata\engine\SimulationEngine.java" ^
   "backend\src\automata\engine\SubsetConstruction.java" ^
   "backend\src\automata\engine\ThompsonsConstruction.java" ^
+  "backend\src\automata\engine\RegexNode.java" ^
+  "backend\src\automata\engine\DFAMinimization.java" ^
   "backend\src\automata\engine\StateElimination.java" ^
+  "backend\src\automata\engine\AlgorithmVerification.java" ^
   "backend\src\automata\server\StaticFileHandler.java" ^
   "backend\src\automata\server\SimulateHandler.java" ^
   "backend\src\automata\server\ConvertHandler.java" ^

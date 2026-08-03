@@ -38,8 +38,9 @@ const Simulator = (() => {
             return;
         }
 
-        const mode = App.getMode();
-        const type = mode === 'ENFA' ? 'ENFA' : (mode === 'NFA' ? 'NFA' : 'DFA');
+        // Auto-detect automaton type from structure, not UI mode.
+        // This prevents sending type='DFA' for an ε-NFA built from regex.
+        const type = detectAutomatonType(automaton);
 
         try {
             testBtn.disabled = true;
@@ -59,6 +60,31 @@ const Simulator = (() => {
             testBtn.disabled = false;
             testBtn.textContent = 'Test';
         }
+    }
+
+    /**
+     * Detect automaton type from its structure:
+     * - Has ε transitions → ENFA
+     * - Has nondeterminism (multiple transitions from same state on same symbol) → NFA
+     * - Otherwise → DFA
+     */
+    function detectAutomatonType(automaton) {
+        if (!automaton.transitions) return 'DFA';
+
+        // Check for ε-transitions
+        for (const t of automaton.transitions) {
+            if (t.symbol === 'ε') return 'ENFA';
+        }
+
+        // Check for nondeterminism
+        const transMap = {};
+        for (const t of automaton.transitions) {
+            const key = `${t.sourceStateId}|${t.symbol}`;
+            if (transMap[key]) return 'NFA';
+            transMap[key] = true;
+        }
+
+        return 'DFA';
     }
 
     function displayResult(accepted, input) {
