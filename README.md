@@ -85,7 +85,7 @@ The backend exposes three stateless REST endpoints (`POST` request with JSON pay
    ```
 3. Open your browser and navigate to:
    ```
-   http://localhost:12000
+   http://localhost:12002
    ```
 
 ### Running on Linux / macOS

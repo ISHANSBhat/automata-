@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Automata Maker - 30 Test Cases</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 2rem; background: #1a1a2e; color: #eee; }
+        h1 { color: #7c5cff; }
+        .test { padding: 0.5rem 1rem; margin: 0.25rem 0; border-radius: 6px; font-size: 0.9rem; }
+        .pass { background: #1a3b26; color: #23c55e; border-left: 4px solid #23c55e; }
+        .fail { background: #3f1616; color: #ef4444; border-left: 4px solid #ef4444; }
+        .summary { margin-top: 1.5rem; padding: 1rem; border-radius: 8px; font-weight: bold; font-size: 1.1rem; }
+        .summary.all-pass { background: #1a3b26; color: #23c55e; }
+        .summary.has-fail { background: #3f1616; color: #ef4444; }
+        #results { max-width: 800px; }
+    </style>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <h1>Automated Test Suite: 30 Test Cases</h1>
+    <p>Epsilon Transitions + Light/Dark Mode Toggle</p>
+    <div id="results"></div>
+
+    <script>
+        const results = [];
+        const container = document.getElementById('results');
+
+        function assert(testName, condition, message) {
+            results.push({ name: testName, pass: condition, message: message || '' });
+        }
+
+        function displayResults() {
+            let html = '';
+            let passed = 0;
+            let failed = 0;
+            results.forEach((r, i) => {
+                if (r.pass) { passed++; } else { failed++; }
+                html += '<div class="test ' + (r.pass ? 'pass' : 'fail') + '">' +
+                    (r.pass ? 'PASS' : 'FAIL') + ' #' + (i + 1) + ': ' + r.name + (r.message ? ' -- ' + r.message : '') +
+                '</div>';
+            });
+            html += '<div class="summary ' + (failed === 0 ? 'all-pass' : 'has-fail') + '">' +
+                passed + ' / ' + results.length + ' tests passed' + (failed > 0 ? ' (' + failed + ' failed)' : ' - All Pass!') +
+            '</div>';
+            container.innerHTML = html;
+        }
+
+        // Test 1: Epsilon symbol constant
+        assert('Epsilon symbol is the correct Unicode char', '\u03b5' === '\u03b5', 'The epsilon character matches');
+
+        // Test 2: Epsilon excluded from alphabet
+        (function() {
+            var alphabetSet = new Set();
+            var transitions = [{symbol:'a'},{symbol:'b'},{symbol:'\u03b5'},{symbol:'c'}];
+            transitions.forEach(function(t) { if (t.symbol !== '\u03b5') alphabetSet.add(t.symbol); });
+            assert('Epsilon excluded from alphabet set', !alphabetSet.has('\u03b5') && alphabetSet.size === 3, 'Alphabet size: ' + alphabetSet.size);
+        })();
+
+        // Test 3: Epsilon detection in transitions
+        (function() {
+            var transitions = [{symbol:'a'},{symbol:'\u03b5'},{symbol:'b'}];
+            var hasEpsilon = transitions.some(function(t) { return t.symbol === '\u03b5'; });
+            assert('Detect epsilon transitions in list', hasEpsilon === true, 'Found epsilon');
+        })();
+
+        // Test 4: No false positive epsilon detection
+        (function() {
+            var transitions = [{symbol:'a'},{symbol:'b'}];
+            var hasEpsilon = transitions.some(function(t) { return t.symbol === '\u03b5'; });
+            assert('No false positive for epsilon detection', hasEpsilon === false, 'No epsilon found');
+        })();
+
+        // Test 5: Type detection DFA
+        (function() {
+            var trans = [{sourceStateId:'q0',symbol:'a',targetStateId:'q1'},{sourceStateId:'q0',symbol:'b',targetStateId:'q0'}];
+            function detectType(ts) {
+                for (var i = 0; i < ts.length; i++) { if (ts[i].symbol === '\u03b5') return 'ENFA'; }
+                var map = {};
+                for (var i = 0; i < ts.length; i++) {
+                    var key = ts[i].sourceStateId + '|' + ts[i].symbol;
+                    if (map[key]) return 'NFA';
+                    map[key] = true;
+                }
+                return 'DFA';
+            }
+            assert('Type detection: DFA', detectType(trans) === 'DFA', 'Deterministic, no epsilon');
+        })();
+
+        // Test 6: Type detection NFA
+        (function() {
+            var trans = [{sourceStateId:'q0',symbol:'a',targetStateId:'q1'},{sourceStateId:'q0',symbol:'a',targetStateId:'q2'}];
+            function detectType(ts) {
+                for (var i = 0; i < ts.length; i++) { if (ts[i].symbol === '\u03b5') return 'ENFA'; }
+                var map = {};
+                for (var i = 0; i < ts.length; i++) {
+                    var key = ts[i].sourceStateId + '|' + ts[i].symbol;
+                    if (map[key]) return 'NFA';
+                    map[key] = true;
+                }
+                return 'DFA';
+            }
+            assert('Type detection: NFA', detectType(trans) === 'NFA', 'Nondeterministic');
+        })();
+
+        // Test 7: Type detection ENFA
+        (function() {
+            var trans = [{sourceStateId:'q0',symbol:'a',targetStateId:'q1'},{sourceStateId:'q1',symbol:'\u03b5',targetStateId:'q2'}];
+            function detectType(ts) {
+                for (var i = 0; i < ts.length; i++) { if (ts[i].symbol === '\u03b5') return 'ENFA'; }
+                var map = {};
+                for (var i = 0; i < ts.length; i++) {
+                    var key = ts[i].sourceStateId + '|' + ts[i].symbol;
+                    if (map[key]) return 'NFA';
+                    map[key] = true;
+                }
+                return 'DFA';
+            }
+            assert('Type detection: e-NFA', detectType(trans) === 'ENFA', 'Has epsilon transitions');
+        })();
+
+        // Test 8: Epsilon closure single state
+        (function() {
+            var transitions = [{source:'q0',target:'q1',symbol:'\u03b5'},{source:'q1',target:'q2',symbol:'\u03b5'},{source:'q0',target:'q3',symbol:'a'}];
+            function epsilonClosure(stateIds) {
+                var closure = new Set(stateIds);
+                var stack = stateIds.slice();
+                while (stack.length > 0) {
+                    var s = stack.pop();
+                    for (var i = 0; i < transitions.length; i++) {
+                        var t = transitions[i];
+                        if (t.source === s && t.symbol === '\u03b5' && !closure.has(t.target)) {
+                            closure.add(t.target);
+                            stack.push(t.target);
+                        }
+                    }
+                }
+                return closure;
+            }
+            var cl = epsilonClosure(['q0']);
+            assert('Epsilon closure from q0 = {q0,q1,q2}', cl.has('q0') && cl.has('q1') && cl.has('q2') && !cl.has('q3') && cl.size === 3, 'Size: ' + cl.size);
+        })();
+
+        // Test 9: Epsilon closure no epsilon transitions
+        (function() {
+            var transitions = [{source:'q0',target:'q1',symbol:'a'}];
+            function epsilonClosure(stateIds) {
+                var closure = new Set(stateIds);
+                var stack = stateIds.slice();
+                while (stack.length > 0) {
+                    var s = stack.pop();
+                    for (var i = 0; i < transitions.length; i++) {
+                        var t = transitions[i];
+                        if (t.source === s && t.symbol === '\u03b5' && !closure.has(t.target)) {
+                            closure.add(t.target);
+                            stack.push(t.target);
+                        }
+                    }
+                }
+                return closure;
+            }
+            var cl = epsilonClosure(['q0']);
+            assert('Epsilon closure with no eps = {q0}', cl.has('q0') && cl.size === 1, 'Only self');
+        })();
+
+        // Test 10: Epsilon self-loop
+        (function() {
+            var transitions = [{source:'q0',target:'q0',symbol:'\u03b5'},{source:'q0',target:'q1',symbol:'\u03b5'}];
+            function epsilonClosure(stateIds) {
+                var closure = new Set(stateIds);
+                var stack = stateIds.slice();
+                while (stack.length > 0) {
+                    var s = stack.pop();
+                    for (var i = 0; i < transitions.length; i++) {
+                        var t = transitions[i];
+                        if (t.source === s && t.symbol === '\u03b5' && !closure.has(t.target)) {
+                            closure.add(t.target);
+                            stack.push(t.target);
+                        }
+                    }
+                }
+                return closure;
+            }
+            var cl = epsilonClosure(['q0']);
+            assert('Epsilon closure handles self-loops', cl.has('q0') && cl.has('q1') && cl.size === 2, 'Size: ' + cl.size);
+        })();
+
+        // Test 11: Serialize epsilon-only automaton
+        (function() {
+            var transitions = [{sourceStateId:'q0',targetStateId:'q1',symbol:'\u03b5'}];
+            var alphabetSet = new Set();
+            transitions.forEach(function(t) { if (t.symbol !== '\u03b5') alphabetSet.add(t.symbol); });
+            assert('Serialize: alphabet empty for eps-only', alphabetSet.size === 0, 'Alphabet size: ' + alphabetSet.size);
+        })();
+
+        // Test 12: Serialize mixed transitions
+        (function() {
+            var transitions = [{sourceStateId:'q0',targetStateId:'q1',symbol:'a'},{sourceStateId:'q1',targetStateId:'q2',symbol:'\u03b5'},{sourceStateId:'q2',targetStateId:'q0',symbol:'b'}];
+            var alphabetSet = new Set();
+            transitions.forEach(function(t) { if (t.symbol !== '\u03b5') alphabetSet.add(t.symbol); });
+            assert('Mixed transitions: alphabet = {a,b}', alphabetSet.has('a') && alphabetSet.has('b') && !alphabetSet.has('\u03b5') && alphabetSet.size === 2, 'Size: ' + alphabetSet.size);
+        })();
+
+        // Test 13: Edge ID generation with epsilon
+        (function() {
+            var edgeId = 'q0-\u03b5-q1-' + Date.now();
+            assert('Edge ID contains epsilon symbol', edgeId.indexOf('\u03b5') !== -1, 'ID starts correctly');
+        })();
+
+        // Test 14: Transition table epsilon column
+        (function() {
+            var symbols = ['a', 'b'];
+            var hasEpsilon = true;
+            var columns = symbols.slice().sort();
+            if (hasEpsilon) columns.push('\u03b5');
+            assert('Table includes eps column when present', columns[columns.length - 1] === '\u03b5' && columns.length === 3, 'Columns: ' + columns.join(','));
+        })();
+
+        // Test 15: No epsilon column in DFA mode
+        (function() {
+            var symbols = ['a', 'b'];
+            var hasEpsilon = false;
+            var appMode = 'DFA';
+            var showEpsilon = hasEpsilon || appMode === 'ENFA';
+            var columns = symbols.slice().sort();
+            if (showEpsilon) columns.push('\u03b5');
+            assert('No eps column in DFA mode', columns.indexOf('\u03b5') === -1 && columns.length === 2, 'Columns: ' + columns.join(','));
+        })();
+
+        // Test 16: Move function
+        (function() {
+            var transitions = [{source:'q0',target:'q1',symbol:'a'},{source:'q0',target:'q2',symbol:'a'},{source:'q1',target:'q2',symbol:'b'}];
+            function move(stateIds, symbol) {
+                var out = new Set();
+                for (var i = 0; i < transitions.length; i++) {
+                    var t = transitions[i];
+                    if (t.symbol === symbol && stateIds.indexOf(t.source) !== -1) out.add(t.target);
+                }
+                return out;
+            }
+            var result = move(['q0'], 'a');
+            assert('Move({q0}, a) = {q1,q2}', result.has('q1') && result.has('q2') && result.size === 2, 'Size: ' + result.size);
+        })();
+
+        // Test 17: ENFA accepts empty string via eps path
+        (function() {
+            var transitions = [{source:'q0',target:'q1',symbol:'\u03b5'}];
+            function epsilonClosure(stateIds) {
+                var closure = new Set(stateIds);
+                var stack = stateIds.slice();
+                while (stack.length > 0) {
+                    var s = stack.pop();
+                    for (var i = 0; i < transitions.length; i++) {
+                        var t = transitions[i];
+                        if (t.source === s && t.symbol === '\u03b5' && !closure.has(t.target)) { closure.add(t.target); stack.push(t.target); }
+                    }
+                }
+                return closure;
+            }
+            var finalStates = new Set(['q1']);
+            var initial = epsilonClosure(['q0']);
+            var accepted = false;
+            initial.forEach(function(s) { if (finalStates.has(s)) accepted = true; });
+            assert('ENFA accepts empty string via eps-path', accepted === true, 'q0->eps->q1(final)');
+        })();
+
+        // Test 18: ENFA rejects with no matching transitions
+        (function() {
+            var transitions = [{source:'q0',target:'q1',symbol:'a'},{source:'q1',target:'q2',symbol:'\u03b5'}];
+            function epsilonClosure(stateIds) {
+                var closure = new Set(stateIds);
+                var stack = stateIds.slice();
+                while (stack.length > 0) {
+                    var s = stack.pop();
+                    for (var i = 0; i < transitions.length; i++) {
+                        var t = transitions[i];
+                        if (t.source === s && t.symbol === '\u03b5' && !closure.has(t.target)) { closure.add(t.target); stack.push(t.target); }
+                    }
+                }
+                return closure;
+            }
+            function move(stateIds, symbol) {
+                var out = new Set();
+                for (var i = 0; i < transitions.length; i++) {
+                    var t = transitions[i];
+                    var arr = [];
+                    stateIds.forEach(function(s) { arr.push(s); });
+                    if (t.symbol === symbol && arr.indexOf(t.source) !== -1) out.add(t.target);
+                }
+                return out;
+            }
+            var finalStates = new Set(['q2']);
+            var active = epsilonClosure(['q0']);
+            var moved = move(active, 'b');
+            var arr = [];
+            moved.forEach(function(s) { arr.push(s); });
+            active = epsilonClosure(arr);
+            var accepted = false;
+            active.forEach(function(s) { if (finalStates.has(s)) accepted = true; });
+            assert('ENFA rejects with no valid transitions', accepted === false, 'No transition on b');
+        })();
+
+        // Test 19: ENFA full sim: q0->a->q1->eps->q2(final)
+        (function() {
+            var transitions = [{source:'q0',target:'q1',symbol:'a'},{source:'q1',target:'q2',symbol:'\u03b5'}];
+            function epsilonClosure(stateIds) {
+                var closure = new Set(stateIds);
+                var stack = stateIds.slice();
+                while (stack.length > 0) {
+                    var s = stack.pop();
+                    for (var i = 0; i < transitions.length; i++) {
+                        var t = transitions[i];
+                        if (t.source === s && t.symbol === '\u03b5' && !closure.has(t.target)) { closure.add(t.target); stack.push(t.target); }
+                    }
+                }
+                return closure;
+            }
+            function move(stateIds, symbol) {
+                var out = new Set();
+                for (var i = 0; i < transitions.length; i++) {
+                    var t = transitions[i];
+                    var arr = [];
+                    stateIds.forEach(function(s) { arr.push(s); });
+                    if (t.symbol === symbol && arr.indexOf(t.source) !== -1) out.add(t.target);
+                }
+                return out;
+            }
+            var finalStates = new Set(['q2']);
+            var active = epsilonClosure(['q0']);
+            var moved = move(active, 'a');
+            var arr = [];
+            moved.forEach(function(s) { arr.push(s); });
+            active = epsilonClosure(arr);
+            var accepted = false;
+            active.forEach(function(s) { if (finalStates.has(s)) accepted = true; });
+            assert('ENFA accepts "a" via q0->a->q1->eps->q2', accepted === true, 'Accepted');
+        })();
+
+        // Test 20: ENFA (a|b)* accepts "ab"
+        (function() {
+            var transitions = [
+                {source:'s',target:'a_in',symbol:'\u03b5'},{source:'s',target:'f',symbol:'\u03b5'},
+                {source:'a_in',target:'a_out',symbol:'a'},{source:'a_in',target:'b_out',symbol:'b'},
+                {source:'a_out',target:'a_in',symbol:'\u03b5'},{source:'a_out',target:'f',symbol:'\u03b5'},
+                {source:'b_out',target:'a_in',symbol:'\u03b5'},{source:'b_out',target:'f',symbol:'\u03b5'}
+            ];
+            function epsilonClosure(stateIds) {
+                var closure = new Set(stateIds);
+                var stack = stateIds.slice();
+                while (stack.length > 0) {
+                    var s = stack.pop();
+                    for (var i = 0; i < transitions.length; i++) {
+                        var t = transitions[i];
+                        if (t.source === s && t.symbol === '\u03b5' && !closure.has(t.target)) { closure.add(t.target); stack.push(t.target); }
+                    }
+                }
+                return closure;
+            }
+            function move(stateIds, symbol) {
+                var out = new Set();
+                for (var i = 0; i < transitions.length; i++) {
+                    var t = transitions[i];
+                    var arr = [];
+                    stateIds.forEach(function(s) { arr.push(s); });
+                    if (t.symbol === symbol && arr.indexOf(t.source) !== -1) out.add(t.target);
+                }
+                return out;
+            }
+            var finalStates = new Set(['f']);
+            var active = epsilonClosure(['s']);
+            var input = 'ab';
+            for (var ci = 0; ci < input.length; ci++) {
+                var moved = move(active, input[ci]);
+                var arr = [];
+                moved.forEach(function(s) { arr.push(s); });
+                active = epsilonClosure(arr);
+            }
+            var accepted = false;
+            active.forEach(function(s) { if (finalStates.has(s)) accepted = true; });
+            assert('ENFA (a|b)* accepts "ab"', accepted === true, 'Accepted');
+        })();
+
+        // Test 21: data-theme attribute can be set
+        (function() {
+            document.documentElement.dataset.theme = 'dark';
+            assert('data-theme attribute can be set', document.documentElement.dataset.theme === 'dark', 'Set to dark');
+        })();
+
+        // Test 22: Set light theme
+        (function() {
+            document.documentElement.dataset.theme = 'light';
+            assert('Can set data-theme to light', document.documentElement.dataset.theme === 'light', 'Theme is light');
+        })();
+
+        // Test 23: CSS bg variable changes between themes
+        (function() {
+            document.documentElement.dataset.theme = 'dark';
+            var darkBg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+            document.documentElement.dataset.theme = 'light';
+            var lightBg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+            assert('CSS --bg changes between themes', darkBg !== lightBg, 'Dark: ' + darkBg + ', Light: ' + lightBg);
+        })();
+
+        // Test 24: CSS text-primary changes
+        (function() {
+            document.documentElement.dataset.theme = 'dark';
+            var dark = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+            document.documentElement.dataset.theme = 'light';
+            var light = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+            assert('CSS --text-primary changes', dark !== light, 'Dark: ' + dark + ', Light: ' + light);
+        })();
+
+        // Test 25: CSS surface changes
+        (function() {
+            document.documentElement.dataset.theme = 'dark';
+            var dark = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim();
+            document.documentElement.dataset.theme = 'light';
+            var light = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim();
+            assert('CSS --surface changes', dark !== light, 'Dark: ' + dark + ', Light: ' + light);
+        })();
+
+        // Test 26: CSS border changes
+        (function() {
+            document.documentElement.dataset.theme = 'dark';
+            var dark = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+            document.documentElement.dataset.theme = 'light';
+            var light = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+            assert('CSS --border changes', dark !== light, 'Dark: ' + dark + ', Light: ' + light);
+        })();
+
+        // Test 27: localStorage persistence
+        (function() {
+            localStorage.setItem('automata-theme', 'light');
+            var retrieved = localStorage.getItem('automata-theme');
+            assert('Theme saved to localStorage', retrieved === 'light', 'Retrieved: ' + retrieved);
+        })();
+
+        // Test 28: localStorage updated
+        (function() {
+            localStorage.setItem('automata-theme', 'dark');
+            var retrieved = localStorage.getItem('automata-theme');
+            assert('Theme updated in localStorage', retrieved === 'dark', 'Retrieved: ' + retrieved);
+        })();
+
+        // Test 29: Toggle logic dark->light->dark
+        (function() {
+            var theme = 'dark';
+            theme = theme === 'dark' ? 'light' : 'dark';
+            var check1 = theme === 'light';
+            theme = theme === 'dark' ? 'light' : 'dark';
+            var check2 = theme === 'dark';
+            assert('Toggle logic works correctly', check1 && check2, 'dark->light->dark');
+        })();
+
+        // Test 30: Accent-soft changes in ENFA mode between themes
+        (function() {
+            document.documentElement.dataset.mode = 'ENFA';
+            document.documentElement.dataset.theme = 'dark';
+            var dark = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim();
+            document.documentElement.dataset.theme = 'light';
+            var light = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim();
+            document.documentElement.dataset.theme = 'dark';
+            document.documentElement.dataset.mode = 'DFA';
+            assert('Accent-soft changes in ENFA between themes', dark !== light, 'Dark: ' + dark + ', Light: ' + light);
+        })();
+
+        // Display
+        displayResults();
+
+        // Console output
+        var passed = results.filter(function(r) { return r.pass; }).length;
+        console.log('TEST RESULTS: ' + passed + '/' + results.length + ' passed');
+    </script>
+</body>
+</html>

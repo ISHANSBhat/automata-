@@ -4,6 +4,7 @@
  */
 const App = (() => {
     let currentMode = 'DFA';  // DFA | NFA | ENFA | REGEX
+    let currentTheme = 'dark'; // dark | light
 
     function init() {
         // Initialize all modules
@@ -12,6 +13,9 @@ const App = (() => {
         TransitionTable.init();
         Simulator.init();
         Stepper.init();
+
+        // Theme toggle
+        initThemeToggle();
 
         // Sidebar toggle (click-based, no hover)
         initSidebarToggle();
@@ -53,6 +57,55 @@ const App = (() => {
         });
 
         updateModeUI();
+    }
+
+    // =========================================================================
+    // Theme Toggle (click logo)
+    // =========================================================================
+
+    function initThemeToggle() {
+        // Load saved preference
+        const saved = localStorage.getItem('automata-theme');
+        if (saved === 'light' || saved === 'dark') {
+            currentTheme = saved;
+        }
+        applyTheme(currentTheme);
+
+        const logo = document.getElementById('theme-toggle');
+        if (!logo) return;
+
+        logo.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(currentTheme);
+            localStorage.setItem('automata-theme', currentTheme);
+
+            // Spin the logo icon
+            const icon = document.getElementById('logo-icon');
+            if (icon) {
+                icon.classList.add('spin');
+                setTimeout(() => icon.classList.remove('spin'), 500);
+            }
+
+            showToast(currentTheme === 'light' ? '☀️ Light mode' : '🌙 Dark mode', 'success');
+        });
+    }
+
+    function applyTheme(theme) {
+        document.documentElement.dataset.theme = theme;
+
+        // Update hint text
+        const hint = document.getElementById('theme-hint');
+        if (hint) {
+            hint.textContent = theme === 'dark' ? 'switch to light' : 'switch to dark';
+        }
+
+        // Notify canvas to restyle Cytoscape
+        document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
+    }
+
+    function getTheme() {
+        return currentTheme;
     }
 
     // =========================================================================
@@ -566,7 +619,7 @@ const App = (() => {
         init();
     }
 
-    return { getMode };
+    return { getMode, getTheme };
 })();
 
 // =========================================================================

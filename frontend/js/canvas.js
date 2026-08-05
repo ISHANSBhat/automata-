@@ -157,6 +157,13 @@ const Canvas = (() => {
                 cy.style(getCytoscapeStyle());
             }
         });
+
+        // Theme-change listener — re-apply Cytoscape styles with new color variables
+        document.addEventListener('theme-changed', () => {
+            if (cy) {
+                cy.style(getCytoscapeStyle());
+            }
+        });
     }
 
     // =========================================================================
@@ -514,14 +521,15 @@ const Canvas = (() => {
         const targetName = cy.getElementById(targetId).data('name');
 
         const appMode = App ? App.getMode() : 'DFA';
-        const placeholder = appMode === 'ENFA' ? 'e.g. a or ε' : 'e.g. a';
+        const placeholder = (appMode === 'ENFA') ? 'e.g. a or ε' : 'e.g. a';
         const description = `Transition from ${sourceName} to ${targetName}:`;
+        const showEpsilon = true; // Always show ε button for convenience
 
         showModal('Add Transition', description, '', (symbol) => {
             if (symbol !== null && symbol.trim() !== '') {
                 addTransition(sourceId, targetId, symbol.trim());
             }
-        }, placeholder);
+        }, placeholder, showEpsilon);
     }
 
     function addTransition(sourceId, targetId, symbol) {
@@ -710,19 +718,29 @@ const Canvas = (() => {
     // Modal Helper
     // =========================================================================
 
-    function showModal(title, description, defaultValue, callback, placeholder) {
+    function showModal(title, description, defaultValue, callback, placeholder, showEpsilon) {
         const overlay = document.getElementById('modal-overlay');
         const titleEl = document.getElementById('modal-title');
         const descEl = document.getElementById('modal-description');
         const inputEl = document.getElementById('modal-input');
         const confirmBtn = document.getElementById('modal-confirm');
         const cancelBtn = document.getElementById('modal-cancel');
+        const epsilonBtn = document.getElementById('modal-epsilon-btn');
 
         titleEl.textContent = title;
         descEl.textContent = description;
         inputEl.value = defaultValue || '';
         inputEl.placeholder = placeholder || '';
         overlay.classList.remove('hidden');
+
+        // Show/hide epsilon button
+        if (epsilonBtn) {
+            if (showEpsilon) {
+                epsilonBtn.classList.remove('hidden');
+            } else {
+                epsilonBtn.classList.add('hidden');
+            }
+        }
 
         inputEl.focus();
         inputEl.select();
@@ -732,6 +750,7 @@ const Canvas = (() => {
             confirmBtn.removeEventListener('click', onConfirm);
             cancelBtn.removeEventListener('click', onCancel);
             inputEl.removeEventListener('keydown', onKeydown);
+            if (epsilonBtn) epsilonBtn.removeEventListener('click', onEpsilon);
         }
 
         function onConfirm() {
@@ -749,9 +768,15 @@ const Canvas = (() => {
             if (e.key === 'Escape') onCancel();
         }
 
+        function onEpsilon() {
+            inputEl.value = 'ε';
+            inputEl.focus();
+        }
+
         confirmBtn.addEventListener('click', onConfirm);
         cancelBtn.addEventListener('click', onCancel);
         inputEl.addEventListener('keydown', onKeydown);
+        if (epsilonBtn) epsilonBtn.addEventListener('click', onEpsilon);
     }
 
     function renameSelectedNode() {

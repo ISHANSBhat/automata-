@@ -28,10 +28,11 @@
     <!-- ===== Top Bar ===== -->
     <header id="topbar">
         <div class="topbar-left">
-            <div class="logo">
-                <span class="logo-icon">◎</span>
+            <div class="logo" id="theme-toggle" title="Click to toggle light/dark mode">
+                <span class="logo-icon" id="logo-icon">◎</span>
                 <h1>Automata Maker</h1>
             </div>
+            <span class="theme-hint" id="theme-hint">click to toggle theme</span>
         </div>
         <div class="topbar-center">
             <div class="mode-selector" id="mode-selector">
@@ -247,7 +248,10 @@
         <div class="modal">
             <h3 id="modal-title">Transition Symbol</h3>
             <p id="modal-description">Enter the transition symbol(s):</p>
-            <input type="text" id="modal-input" placeholder="e.g. a" spellcheck="false" autocomplete="off">
+            <div class="modal-input-row">
+                <input type="text" id="modal-input" placeholder="e.g. a" spellcheck="false" autocomplete="off">
+                <button class="epsilon-btn hidden" id="modal-epsilon-btn" title="Insert ε (epsilon)">ε</button>
+            </div>
             <div class="modal-actions">
                 <button class="small-btn" id="modal-cancel">Cancel</button>
                 <button class="accent-btn" id="modal-confirm">Add</button>

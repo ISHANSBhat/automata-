@@ -10,15 +10,15 @@ import java.util.concurrent.Executors;
  * Main entry point for the Automata Maker backend.
  * Starts a lightweight HTTP server on port 8080 that serves:
  * <ul>
- *   <li>Static frontend files from the {@code frontend/} directory</li>
- *   <li>Three stateless computation API endpoints</li>
+ * <li>Static frontend files from the {@code frontend/} directory</li>
+ * <li>Three stateless computation API endpoints</li>
  * </ul>
  */
 public class AutomataServer {
 
     public static void main(String[] args) throws IOException {
         String envPort = System.getenv("PORT");
-        int port = (envPort != null && !envPort.isBlank()) ? Integer.parseInt(envPort) : 12000;
+        int port = (envPort != null && !envPort.isBlank()) ? Integer.parseInt(envPort) : 12002;
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 

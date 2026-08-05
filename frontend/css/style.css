@@ -1,6 +1,6 @@
 /* ===========================================================================
    Automata Maker — Neubrutalist Design System (Gumroad-inspired)
-   Dark mode only, thick off-white borders, mode-colored hard shadows,
+   Dark/Light mode, thick borders, mode-colored hard shadows,
    bold typography, separated spacing scale.
    =========================================================================== */
 
@@ -77,6 +77,101 @@
     --accent: #7c5cff;
     --accent-soft: #281e46;
 }
+/* ---------- Light Mode Theme ---------- */
+[data-theme="light"] {
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --border: #2a2a2e;
+    --text-primary: #1a1a1e;
+    --text-secondary: #5a5a65;
+    --text-muted: #8a8a95;
+    --shadow: 4px 4px 0 var(--accent);
+    --shadow-pressed: 2px 2px 0 var(--accent);
+}
+
+[data-theme="light"][data-mode="DFA"] {
+    --accent: #e060c0;
+    --accent-soft: #fce4f6;
+}
+
+[data-theme="light"][data-mode="NFA"] {
+    --accent: #d4a800;
+    --accent-soft: #fff7d6;
+}
+
+[data-theme="light"][data-mode="ENFA"] {
+    --accent: #3a6de8;
+    --accent-soft: #dce8ff;
+}
+
+[data-theme="light"][data-mode="REGEX"] {
+    --accent: #6a4ce0;
+    --accent-soft: #ece4ff;
+}
+
+/* Light mode overrides for specific hard-coded colors */
+[data-theme="light"] .icon-btn.danger:hover {
+    border-color: var(--red);
+    color: var(--red);
+    background: #fee2e2;
+}
+
+[data-theme="light"] .tool-btn.danger-tool:hover {
+    background: #fee2e2;
+    color: var(--red);
+    border-color: var(--red);
+}
+
+[data-theme="light"] .tool-btn.danger-tool.active {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--border);
+}
+
+[data-theme="light"] .test-result.accepted {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+[data-theme="light"] .test-result.rejected {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+[data-theme="light"] .toast.error {
+    border-color: var(--red);
+    color: var(--red);
+    background: #fee2e2;
+}
+
+[data-theme="light"] .toast.success {
+    border-color: var(--green);
+    color: #16a34a;
+    background: #dcfce7;
+}
+
+[data-theme="light"] .enlarge-modal-close:hover {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+}
+
+[data-theme="light"] .mode-btn.active {
+    color: #fff;
+}
+
+[data-theme="light"] .tool-btn.active {
+    color: #fff;
+}
+
+[data-theme="light"] .tool-btn.active svg {
+    stroke: #fff;
+}
+
+[data-theme="light"] #canvas-area::before {
+    background-image: radial-gradient(circle, rgba(42, 42, 46, 0.12) 1px, transparent 1px);
+}
+
 
 /* ---------- Reset & Base ---------- */
 *,
@@ -142,12 +237,29 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-1);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform var(--transition-fast);
+}
+
+.logo:hover {
+    transform: scale(1.03);
+}
+
+.logo:active {
+    transform: scale(0.97);
 }
 
 .logo-icon {
     font-size: clamp(1.25rem, 2vw, 1.75rem);
     color: var(--accent);
-    transition: color var(--transition-normal);
+    transition: color var(--transition-normal), transform 0.5s ease;
+    display: inline-block;
+}
+
+.logo-icon.spin {
+    transform: rotate(180deg);
 }
 
 .logo h1 {
@@ -155,6 +267,26 @@ body {
     font-weight: 800;
     letter-spacing: -0.03em;
     color: var(--text-primary);
+}
+
+/* Theme indicator badge */
+.theme-hint {
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    position: absolute;
+    bottom: 0.5rem;
+    left: var(--space-3);
+    pointer-events: none;
+}
+
+.logo:hover + .theme-hint,
+.logo:hover ~ .theme-hint {
+    opacity: 1;
 }
 
 /* Mode Selector */
@@ -928,6 +1060,51 @@ input[type="text"]::placeholder {
 
 .modal input {
     margin-bottom: var(--space-3);
+}
+
+/* Epsilon quick-insert button in modal */
+.modal-input-row {
+    display: flex;
+    gap: var(--space-1);
+    align-items: stretch;
+    margin-bottom: var(--space-3);
+}
+
+.modal-input-row input {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.epsilon-btn {
+    padding: 0 var(--space-2);
+    background: var(--accent);
+    color: var(--bg);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    min-width: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.epsilon-btn:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow);
+}
+
+.epsilon-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+}
+
+.epsilon-btn.hidden {
+    display: none;
 }
 
 .modal-actions {
