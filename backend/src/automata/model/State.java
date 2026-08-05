@@ -7,7 +7,7 @@ import java.util.Objects;
  * Identity is based solely on {@code id} — two State records with the same id
  * but different isStart/isFinal flags are considered equal for Set membership.
  */
-public record State(String id, String name, boolean isStart, boolean isFinal) {
+public record State(String id, String name, double x, double y, boolean isStart, boolean isFinal) {
 
     public State {
         Objects.requireNonNull(id, "State id must not be null");
@@ -16,9 +16,14 @@ public record State(String id, String name, boolean isStart, boolean isFinal) {
         }
     }
 
-    /** Convenience constructor: name defaults to id. */
+    /** Constructor without explicit x,y coordinates (defaults to 0,0). */
+    public State(String id, String name, boolean isStart, boolean isFinal) {
+        this(id, name, 0.0, 0.0, isStart, isFinal);
+    }
+
+    /** Convenience constructor: name defaults to id, x/y default to 0. */
     public State(String id, boolean isStart, boolean isFinal) {
-        this(id, id, isStart, isFinal);
+        this(id, id, 0.0, 0.0, isStart, isFinal);
     }
 
     // --- Identity by id only ---------------------------------------------------
@@ -39,10 +44,13 @@ public record State(String id, String name, boolean isStart, boolean isFinal) {
 
     public String toJson() {
         return """
-               {"id":"%s","name":"%s","isStart":%b,"isFinal":%b}\
+               {"id":"%s","name":"%s","label":"%s","x":%.1f,"y":%.1f,"isStart":%b,"isFinal":%b}\
                """.formatted(
                 escapeJson(id),
                 escapeJson(name),
+                escapeJson(name),
+                x,
+                y,
                 isStart,
                 isFinal
         );

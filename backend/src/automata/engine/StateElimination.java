@@ -4,230 +4,197 @@ import automata.model.Automaton;
 import automata.model.State;
 import automata.model.Transition;
 import automata.engine.StepLogger.ThompsonStep;
-import automata.engine.StepLogger.ThompsonResult;
 import automata.util.JsonUtil;
 
 import java.util.*;
 
 /**
- * State Elimination algorithm: converts a DFA/NFA to a Regular Expression.
- *
- * <p>Algorithm:</p>
- * <ol>
- *   <li>Build a GNFA (Generalized NFA) where each transition label is a {@link RegexNode}</li>
- *   <li>Add a new super-start state and super-accept state</li>
- *   <li>Iteratively eliminate interior states, updating transition regexes</li>
- *   <li>The final regex is the label on the single remaining edge from super-start to super-accept</li>
- * </ol>
- *
- * <p>Regex algebra is performed on a tree-based AST ({@link RegexNode}) rather than
- * raw strings. Each union/concat/star operation eagerly simplifies using algebraic
- * rewrite rules (common-factor extraction, star-unfold recognition, etc.) so
- * intermediate expressions stay compact and the final result is well-simplified.</p>
+ * State Elimination algorithm matching JS FALib.dfaToRegex logic.
+ * Performs pure string-based regex algebra.
  */
 public final class StateElimination {
 
     private StateElimination() {}
 
-    /**
-     * Result of DFA → Regex conversion.
-     */
     public record RegexResult(String regex, List<ThompsonStep> steps) {
         public String toJson() {
             List<String> stepJsons = steps.stream()
                     .map(ThompsonStep::toJson)
                     .toList();
             return JsonUtil.objectOf(
-                    "regex", JsonUtil.quoted(regex),
+                    "regex", regex == null ? "null" : JsonUtil.quoted(regex),
                     "steps", JsonUtil.array(stepJsons)
             );
         }
     }
 
-    // =========================================================================
-    // Public API
-    // =========================================================================
+    @FunctionalInterface
+    private interface TriConsumer<T, U, V> {
+        void accept(T t, U u, V v);
+    }
 
-    /**
-     * Convert an automaton (DFA or NFA) to a regular expression via state elimination.
-     *
-     * <p>Pipeline: convert to DFA (if needed) → minimize → GNFA → eliminate states.</p>
-     */
-    public static RegexResult toRegex(Automaton automaton) {
+    public static RegexResult toRegex(Automaton a) {
+        Automaton src = a;
+        if (src.hasEpsilonTransitions()) {
+            src = SimulationEngine.removeEpsilon(a);
+        }
+
+        String startId = src.getStartStateId();
+        if (startId == null) {
+            return new RegexResult(null, List.of());
+        }
+
+        Map<String, String> R = new HashMap<>();
+
+        java.util.function.BiFunction<String, String, String> key = (p, q) -> p + "\u0000" + q;
+        TriConsumer<String, String, String> set = (p, q, v) -> {
+            if ("∅".equals(v)) R.remove(key.apply(p, q));
+            else R.put(key.apply(p, q), v);
+        };
+        java.util.function.BiFunction<String, String, String> get = (p, q) -> R.getOrDefault(key.apply(p, q), "∅");
+
+        for (State s : src.getStates()) {
+            R.put(key.apply(s.id(), s.id()), Transition.EPSILON);
+        }
+
+        for (Transition t : src.getTransitions()) {
+            set.accept(t.sourceStateId(), t.targetStateId(), union(get.apply(t.sourceStateId(), t.targetStateId()), t.symbol()));
+        }
+
+        String ns = "⟳NS";
+        String nf = "⟳NF";
+        set.accept(ns, startId, Transition.EPSILON);
+
+        for (State s : src.getStates()) {
+            if (s.isFinal()) {
+                set.accept(s.id(), nf, Transition.EPSILON);
+            }
+        }
+
+        List<String> order = src.getStates().stream().map(State::id).toList();
         List<ThompsonStep> steps = new ArrayList<>();
         int stepNum = 1;
 
-        if (automaton.getStates().isEmpty()) {
-            return new RegexResult("∅", List.of(
-                    new ThompsonStep(1, "result", "∅", "Empty automaton → ∅")));
-        }
+        for (String q : order) {
+            Set<String> incoming = new HashSet<>();
+            Set<String> outgoing = new HashSet<>();
 
-        if (automaton.getStartStateId() == null) {
-            return new RegexResult("∅", List.of(
-                    new ThompsonStep(1, "result", "∅", "No start state → ∅")));
-        }
+            for (Map.Entry<String, String> entry : R.entrySet()) {
+                String v = entry.getValue();
+                if ("∅".equals(v)) continue;
+                String[] parts = entry.getKey().split("\u0000");
+                String p = parts[0];
+                String qq = parts[1];
 
-        if (automaton.getFinalStateIds().isEmpty()) {
-            return new RegexResult("∅", List.of(
-                    new ThompsonStep(1, "result", "∅", "No final states → ∅")));
-        }
-
-        // 0a. Convert to DFA if the input is an NFA or ε-NFA
-        Automaton dfa = automaton;
-        if (!automaton.isDFA()) {
-            boolean hasEps = automaton.hasEpsilonTransitions();
-            StepLogger.ConversionResult conv = hasEps
-                    ? SubsetConstruction.convertENFAtoDFA(automaton)
-                    : SubsetConstruction.convertNFAtoDFA(automaton);
-            dfa = conv.resultDFA();
-            steps.add(new ThompsonStep(stepNum++, "convert",
-                    dfa.getStates().size() + " states",
-                    "Converted " + (hasEps ? "ε-NFA" : "NFA") + " to DFA (" +
-                            dfa.getStates().size() + " states) via subset construction"));
-        }
-
-        // 0b. Minimize the DFA
-        int beforeSize = dfa.getStates().size();
-        dfa = DFAMinimization.minimize(dfa);
-        int afterSize = dfa.getStates().size();
-        steps.add(new ThompsonStep(stepNum++, "minimize",
-                afterSize + " states",
-                "Minimized DFA: " + beforeSize + " → " + afterSize + " states"));
-
-        // 1. Build GNFA transition table: gnfa[src][dst] = RegexNode
-        //    All states from the minimized DFA + a super-start and super-accept
-        String superStart  = "__S__";
-        String superAccept = "__A__";
-
-        List<String> allStates = new ArrayList<>();
-        allStates.add(superStart);
-        for (State s : dfa.getStates()) {
-            allStates.add(s.id());
-        }
-        allStates.add(superAccept);
-
-        // Initialize all transitions to Empty (∅)
-        Map<String, Map<String, RegexNode>> gnfa = new LinkedHashMap<>();
-        for (String src : allStates) {
-            Map<String, RegexNode> row = new LinkedHashMap<>();
-            for (String dst : allStates) {
-                row.put(dst, new RegexNode.Empty());
+                if (qq.equals(q) && !p.equals(q)) incoming.add(p);
+                if (p.equals(q) && !qq.equals(q)) outgoing.add(qq);
             }
-            gnfa.put(src, row);
-        }
 
-        // 2. Populate from minimized DFA
-        // super-start → original start via ε
-        gnfa.get(superStart).put(dfa.getStartStateId(), new RegexNode.Eps());
+            String loopStar = star(get.apply(q, q));
 
-        // original final states → super-accept via ε
-        for (String fid : dfa.getFinalStateIds()) {
-            gnfa.get(fid).put(superAccept, new RegexNode.Eps());
-        }
-
-        // Original transitions: merge multiple symbols on the same (src, dst) pair via union
-        for (Transition t : dfa.getTransitions()) {
-            String src = t.sourceStateId();
-            String dst = t.targetStateId();
-            RegexNode sym = t.isEpsilon() ? new RegexNode.Eps() : new RegexNode.Lit(t.symbol());
-
-            RegexNode existing = gnfa.get(src).get(dst);
-            gnfa.get(src).put(dst, RegexNode.union(existing, sym));
-        }
-
-        steps.add(new ThompsonStep(stepNum++, "init", "",
-                "Built GNFA with " + allStates.size() + " states (including super-start and super-accept)"));
-
-        // 3. Eliminate interior states (all except super-start and super-accept)
-        //    Sort by ascending degree (incoming + outgoing edges) — low-degree-first
-        //    produces shorter intermediate expressions.
-        final Automaton dfaRef = dfa;
-        List<String> toEliminate = new ArrayList<>();
-        for (State s : dfa.getStates()) {
-            toEliminate.add(s.id());
-        }
-        toEliminate.sort(Comparator.comparingInt(id -> stateDegree(dfaRef, id)));
-
-        for (String qRip : toEliminate) {
-            // For each pair (qi, qj) where qi != qRip, qj != qRip:
-            //   R(qi, qj) = R(qi, qj) | R(qi, qRip) . R(qRip, qRip)* . R(qRip, qj)
-
-            RegexNode selfLoop = gnfa.get(qRip).get(qRip);
-
-            List<String> remaining = allStates.stream()
-                    .filter(s -> !s.equals(qRip))
-                    .toList();
-
-            for (String qi : remaining) {
-                RegexNode rToRip = gnfa.get(qi).get(qRip);
-                if (rToRip instanceof RegexNode.Empty) continue;  // no path qi→qRip, skip
-
-                for (String qj : remaining) {
-                    RegexNode rFromRip = gnfa.get(qRip).get(qj);
-                    if (rFromRip instanceof RegexNode.Empty) continue;  // no path qRip→qj, skip
-
-                    RegexNode existing = gnfa.get(qi).get(qj);
-
-                    // Build: rToRip . selfLoop* . rFromRip
-                    RegexNode through = RegexNode.concat(
-                            RegexNode.concat(rToRip, RegexNode.star(selfLoop)),
-                            rFromRip
-                    );
-
-                    RegexNode updated = RegexNode.union(existing, through);
-                    gnfa.get(qi).put(qj, updated);
+            for (String p : incoming) {
+                for (String r : outgoing) {
+                    set.accept(p, r, union(get.apply(p, r), concat(concat(get.apply(p, q), loopStar), get.apply(q, r))));
                 }
             }
 
-            // Remove qRip from allStates
-            allStates.remove(qRip);
-            gnfa.remove(qRip);
-            for (Map<String, RegexNode> row : gnfa.values()) {
-                row.remove(qRip);
+            List<String> keysToRemove = new ArrayList<>();
+            for (String k : R.keySet()) {
+                String[] parts = k.split("\u0000");
+                String p = parts[0];
+                String qq = parts[1];
+                if (p.equals(q) || qq.equals(q)) {
+                    keysToRemove.add(k);
+                }
+            }
+            for (String k : keysToRemove) {
+                R.remove(k);
             }
 
-            // Summarize the regex so far for the step log
-            RegexNode currentNode = gnfa.get(superStart).get(superAccept);
-            String currentRegex = RegexNode.render(currentNode);
-            String stateName = dfaRef.getState(qRip) != null
-                    ? dfaRef.getState(qRip).name() : qRip;
-
-            steps.add(new ThompsonStep(stepNum++, "eliminate", stateName,
-                    "Eliminate state " + stateName +
-                            " → remaining: " + (allStates.size() - 2) + " interior states" +
-                            " | regex so far: " + truncate(currentRegex, 120)));
+            steps.add(new ThompsonStep(stepNum++, "eliminate", q, "Eliminated state " + q));
         }
 
-        // 4. Final regex is gnfa[superStart][superAccept]
-        RegexNode finalNode = gnfa.get(superStart).get(superAccept);
-        String finalRegex = RegexNode.render(finalNode);
-
-        steps.add(new ThompsonStep(stepNum, "result", finalRegex,
-                "State elimination complete. Regex: " + finalRegex));
+        String regex = get.apply(ns, nf);
+        String finalRegex = "∅".equals(regex) ? null : regex;
 
         return new RegexResult(finalRegex, steps);
     }
 
-    /**
-     * Compute the degree of a state: number of incoming + outgoing transitions.
-     * Used to sort elimination order — low-degree states first produce shorter regexes.
-     */
-    private static int stateDegree(Automaton dfa, String stateId) {
-        int degree = 0;
-        for (Transition t : dfa.getTransitions()) {
-            if (t.sourceStateId().equals(stateId)) degree++;
-            if (t.targetStateId().equals(stateId)) degree++;
+    // --- Pure String-based Regex Helper Functions matching JS FALib ---
+
+    public static List<String> splitAlts(String s) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        StringBuilder cur = new StringBuilder();
+        for (char ch : s.toCharArray()) {
+            if (ch == '(') depth++;
+            else if (ch == ')') depth--;
+            else if (ch == '|' && depth == 0) {
+                out.add(cur.toString());
+                cur = new StringBuilder();
+                continue;
+            }
+            cur.append(ch);
         }
-        return degree;
+        out.add(cur.toString());
+        return out.stream().filter(a -> !a.isEmpty()).toList();
     }
 
-    // =========================================================================
-    // Utility
-    // =========================================================================
+    public static String union(String A, String B) {
+        if ("∅".equals(A)) return B;
+        if ("∅".equals(B)) return A;
+        if (A.equals(B)) return A;
 
-    /** Truncate a string for display purposes. */
-    private static String truncate(String s, int maxLen) {
-        if (s.length() <= maxLen) return s;
-        return s.substring(0, maxLen - 3) + "...";
+        List<String> alts = new ArrayList<>();
+        for (String x : List.of(A, B)) {
+            boolean wrapped = x.startsWith("(") && x.endsWith(")") && x.length() > 2;
+            String inner = wrapped ? x.substring(1, x.length() - 1) : null;
+            if (inner != null && splitAlts(inner).size() > 1) {
+                alts.addAll(splitAlts(inner));
+            } else {
+                alts.add(x);
+            }
+        }
+
+        Set<String> uniqueSet = new LinkedHashSet<>(alts);
+        List<String> unique = new ArrayList<>(uniqueSet);
+        if (unique.size() == 1) return unique.get(0);
+        return "(" + String.join("|", unique) + ")";
+    }
+
+    public static String concat(String A, String B) {
+        if ("∅".equals(A) || "∅".equals(B)) return "∅";
+        if (Transition.EPSILON.equals(A)) return B;
+        if (Transition.EPSILON.equals(B)) return A;
+        return wrap(A) + wrap(B);
+    }
+
+    public static String wrap(String s) {
+        if (s.length() == 1) return s;
+        int depth = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch == '(') depth++;
+            else if (ch == ')') depth--;
+            else if (ch == '|' && depth == 0) return "(" + s + ")";
+        }
+        return s;
+    }
+
+    public static String star(String s) {
+        if ("∅".equals(s)) return "∅";
+        if (Transition.EPSILON.equals(s)) return Transition.EPSILON;
+        String inner = s;
+        if (s.startsWith("(") && s.endsWith(")") && s.length() > 2) {
+            String body = s.substring(1, s.length() - 1);
+            List<String> alts = splitAlts(body);
+            if (alts.size() > 1) {
+                List<String> noEps = alts.stream().filter(a -> !Transition.EPSILON.equals(a)).toList();
+                if (noEps.size() == alts.size()) inner = body;
+                else if (noEps.size() == 1) inner = noEps.get(0);
+                else inner = "(" + String.join("|", noEps) + ")";
+            }
+        }
+        return "(" + inner + ")*";
     }
 }

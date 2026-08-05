@@ -52,6 +52,22 @@ public class Automaton {
         return Collections.unmodifiableList(transitions);
     }
 
+    /** Returns transitions systematically sorted by sourceStateId, symbol, targetStateId. */
+    public List<Transition> getSortedTransitions() {
+        List<Transition> copy = new ArrayList<>(transitions);
+        copy.sort(Comparator.comparing(Transition::sourceStateId)
+                .thenComparing(Transition::symbol)
+                .thenComparing(Transition::targetStateId));
+        return copy;
+    }
+
+    /** Returns states systematically sorted by ID. */
+    public List<State> getSortedStates() {
+        List<State> copy = new ArrayList<>(states);
+        copy.sort(Comparator.comparing(State::id));
+        return copy;
+    }
+
     public Set<String> getAlphabet() {
         return Collections.unmodifiableSet(alphabet);
     }
@@ -149,6 +165,29 @@ public class Automaton {
     // --- Analysis --------------------------------------------------------------
 
     /**
+     * Derives the alphabet from transitions (all non-ε symbols), sorted.
+     * Matches JS FALib.getAlphabet(a).
+     */
+    public List<String> getAlphabetComputed() {
+        Set<String> set = new TreeSet<>();
+        for (Transition t : transitions) {
+            if (!t.isEpsilon()) set.add(t.symbol());
+        }
+        return new ArrayList<>(set);
+    }
+
+    /**
+     * Detects the type of this automaton.
+     * Matches JS FALib.detectType(a).
+     * @return "ε-NFA", "DFA", or "NFA"
+     */
+    public String detectType() {
+        if (transitions.stream().anyMatch(Transition::isEpsilon)) return "ε-NFA";
+        if (isDFA()) return "DFA";
+        return "NFA";
+    }
+
+    /**
      * Returns {@code true} if this automaton is deterministic:
      * <ul>
      *   <li>No ε-transitions</li>
@@ -176,30 +215,62 @@ public class Automaton {
         return transitions.stream().anyMatch(Transition::isEpsilon);
     }
 
+    /**
+     * Generates a systematic ASCII transition table for display.
+     */
+    public String toTransitionTableString() {
+        StringBuilder sb = new StringBuilder();
+        List<String> alpha = getAlphabetComputed();
+        sb.append(String.format("%-12s", "State"));
+        for (String sym : alpha) {
+            sb.append(String.format("%-12s", sym));
+        }
+        if (hasEpsilonTransitions()) {
+            sb.append(String.format("%-12s", "ε"));
+        }
+        sb.append("\n").append("-".repeat(12 * (alpha.size() + 2))).append("\n");
+
+        for (State s : getSortedStates()) {
+            String prefix = (s.isStart() ? "->" : "") + (s.isFinal() ? "*" : "");
+            String stateLabel = prefix + s.name();
+            sb.append(String.format("%-12s", stateLabel));
+
+            for (String sym : alpha) {
+                Set<String> targets = getTargetStates(s.id(), sym);
+                String tStr = targets.isEmpty() ? "-" : "{" + String.join(",", targets) + "}";
+                sb.append(String.format("%-12s", tStr));
+            }
+            if (hasEpsilonTransitions()) {
+                Set<String> epsTargets = getTargetStates(s.id(), Transition.EPSILON);
+                String eStr = epsTargets.isEmpty() ? "-" : "{" + String.join(",", epsTargets) + "}";
+                sb.append(String.format("%-12s", eStr));
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
     // --- JSON serialization ----------------------------------------------------
 
     public String toJson() {
-        // States array
         List<String> stateJsons = states.stream()
                 .map(State::toJson)
                 .toList();
 
-        // Transitions array
-        List<String> transJsons = transitions.stream()
+        List<String> transJsons = getSortedTransitions().stream()
                 .map(Transition::toJson)
                 .toList();
 
-        // Alphabet array
         List<String> alphaJsons = alphabet.stream()
                 .map(JsonUtil::quoted)
                 .toList();
 
-        // Final state IDs array
         List<String> finalJsons = finalStateIds.stream()
                 .map(JsonUtil::quoted)
                 .toList();
 
         return JsonUtil.objectOf(
+                "automatonType", JsonUtil.quoted(detectType()),
                 "states", JsonUtil.array(stateJsons),
                 "transitions", JsonUtil.array(transJsons),
                 "alphabet", JsonUtil.array(alphaJsons),
@@ -218,6 +289,7 @@ public class Automaton {
 
     /**
      * Deserializes an Automaton from an already-parsed JSON map.
+     * Supports both backend format (sourceStateId/targetStateId) and frontend format (from/to, label).
      */
     @SuppressWarnings("unchecked")
     public static Automaton fromJsonMap(Map<String, Object> map) {
@@ -230,9 +302,19 @@ public class Automaton {
                 Map<String, Object> sm = (Map<String, Object>) sMap;
                 String id = JsonUtil.getString(sm, "id");
                 String name = JsonUtil.getString(sm, "name");
+                if (name == null) name = JsonUtil.getString(sm, "label");
+                if (name == null) name = id;
+
+                double x = 0.0;
+                double y = 0.0;
+                Object xObj = sm.get("x");
+                Object yObj = sm.get("y");
+                if (xObj instanceof Number nx) x = nx.doubleValue();
+                if (yObj instanceof Number ny) y = ny.doubleValue();
+
                 boolean isStart = JsonUtil.getBoolean(sm, "isStart");
                 boolean isFinal = JsonUtil.getBoolean(sm, "isFinal");
-                a.addState(new State(id, name != null ? name : id, isStart, isFinal));
+                a.addState(new State(id, name, x, y, isStart, isFinal));
             }
         }
 
@@ -241,14 +323,21 @@ public class Automaton {
         for (Object tObj : transArr) {
             if (tObj instanceof Map<?, ?> tMap) {
                 Map<String, Object> tm = (Map<String, Object>) tMap;
+                String tid = JsonUtil.getString(tm, "id");
                 String src = JsonUtil.getString(tm, "sourceStateId");
+                if (src == null) src = JsonUtil.getString(tm, "from");
+
                 String tgt = JsonUtil.getString(tm, "targetStateId");
+                if (tgt == null) tgt = JsonUtil.getString(tm, "to");
+
                 String sym = JsonUtil.getString(tm, "symbol");
-                a.addTransition(new Transition(src, tgt, sym));
+                if (src != null && tgt != null && sym != null) {
+                    a.addTransition(new Transition(tid, src, tgt, sym));
+                }
             }
         }
 
-        // Parse alphabet (may also be derived from transitions, but explicit is fine)
+        // Parse alphabet
         List<Object> alphaArr = JsonUtil.getArray(map, "alphabet");
         for (Object aObj : alphaArr) {
             if (aObj instanceof String s) {
@@ -275,7 +364,7 @@ public class Automaton {
 
     @Override
     public String toString() {
-        return "Automaton{states=%d, transitions=%d, alphabet=%s, start=%s, finals=%s}"
-                .formatted(states.size(), transitions.size(), alphabet, startStateId, finalStateIds);
+        return "Automaton{type=%s, states=%d, transitions=%d, alphabet=%s, start=%s, finals=%s}"
+                .formatted(detectType(), states.size(), transitions.size(), alphabet, startStateId, finalStateIds);
     }
 }

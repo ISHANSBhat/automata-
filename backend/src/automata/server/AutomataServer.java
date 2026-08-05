@@ -36,7 +36,7 @@ public class AutomataServer {
 
         System.out.println("""
                 ╔══════════════════════════════════════════════╗
-                ║         🤖 Automata Maker Server             ║
+                ║          Automata Maker Server             ║
                 ║                                              ║
                 ║   Running on: http://localhost:%d          ║
                 ║   Press Ctrl+C to stop                       ║

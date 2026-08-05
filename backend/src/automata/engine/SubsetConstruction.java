@@ -7,161 +7,135 @@ import automata.engine.StepLogger.ConversionStep;
 import automata.engine.StepLogger.ConversionResult;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Subset Construction algorithm for converting NFA/ε-NFA to DFA.
- * Pure functions — takes an Automaton, returns a new Automaton + step trace.
+ * Formats transition calculations systematically and maps each NFA subset to a DFA state.
  */
 public final class SubsetConstruction {
 
     private SubsetConstruction() {}
 
-    /**
-     * Convert an NFA (no ε-transitions) to a DFA via subset construction.
-     */
     public static ConversionResult convertNFAtoDFA(Automaton nfa) {
-        return convert(nfa, false);
+        return convert(nfa, "NFA_TO_DFA");
     }
 
-    /**
-     * Convert an ε-NFA to a DFA via subset construction with ε-closure.
-     */
     public static ConversionResult convertENFAtoDFA(Automaton enfa) {
-        return convert(enfa, true);
+        return convert(enfa, "ENFA_TO_DFA");
     }
 
-    /**
-     * Dispatch based on type string from API.
-     */
     public static ConversionResult convert(Automaton automaton, String type) {
-        return switch (type.toUpperCase()) {
-            case "NFA_TO_DFA"  -> convertNFAtoDFA(automaton);
-            case "ENFA_TO_DFA" -> convertENFAtoDFA(automaton);
-            default -> throw new IllegalArgumentException("Unknown conversion type: " + type);
-        };
-    }
-
-    // =========================================================================
-    // Core Algorithm
-    // =========================================================================
-
-    private static ConversionResult convert(Automaton nfa, boolean hasEpsilon) {
         List<ConversionStep> steps = new ArrayList<>();
-        Automaton dfa = new Automaton();
+        Automaton src = automaton;
 
-        String startId = nfa.getStartStateId();
+        String startId = src.getStartStateId();
         if (startId == null) {
-            return new ConversionResult(dfa, List.of(
-                    new ConversionStep(1, Set.of(), "", "No start state defined")));
+            return new ConversionResult(new Automaton(), List.of(
+                    new ConversionStep(1, Set.of(), "", "No start state defined in input automaton")));
         }
 
-        // Alphabet (non-ε symbols)
-        Set<String> alphabet = nfa.getAlphabet();
-        for (String sym : alphabet) {
-            dfa.addAlphabetSymbol(sym);
-        }
-
-        // 1. Compute initial DFA state
-        Set<String> initialSet;
-        if (hasEpsilon) {
-            initialSet = SimulationEngine.epsilonClosure(nfa, Set.of(startId));
-        } else {
-            initialSet = new LinkedHashSet<>();
-            initialSet.add(startId);
-        }
-
-        String initialName = dfaStateName(initialSet);
-
-        steps.add(new ConversionStep(1, Set.copyOf(initialSet), initialName,
-                (hasEpsilon
-                        ? "ε-closure of start state {" + startId + "} = " + initialName
-                        : "Initial DFA state = " + initialName)));
-
-        // Map from NFA state set → DFA state name
-        Map<Set<String>, String> stateMap = new LinkedHashMap<>();
-        stateMap.put(initialSet, initialName);
-
-        // Worklist of unprocessed DFA states
-        Queue<Set<String>> worklist = new LinkedList<>();
-        worklist.add(initialSet);
-
-        // Add initial DFA state
-        boolean initialIsFinal = initialSet.stream()
-                .anyMatch(s -> nfa.getFinalStateIds().contains(s));
-        dfa.addState(new State(initialName, initialName, true, initialIsFinal));
-        if (initialIsFinal) dfa.addFinalStateId(initialName);
-        dfa.setStartStateId(initialName);
-
-        int stepNum = 2;
-
-        // 2. Process worklist
-        while (!worklist.isEmpty()) {
-            Set<String> currentSet = worklist.poll();
-            String currentName = stateMap.get(currentSet);
-
-            for (String symbol : alphabet) {
-                // Compute move(currentSet, symbol)
-                Set<String> moveSet = new LinkedHashSet<>();
-                for (String stateId : currentSet) {
-                    moveSet.addAll(nfa.getTargetStates(stateId, symbol));
-                }
-
-                // If ε-NFA, apply ε-closure to the moved states
-                Set<String> targetSet;
-                if (hasEpsilon) {
-                    targetSet = SimulationEngine.epsilonClosure(nfa, moveSet);
-                } else {
-                    targetSet = moveSet;
-                }
-
-                if (targetSet.isEmpty()) {
-                    // Dead state — skip (no transition in DFA)
-                    continue;
-                }
-
-                String targetName = dfaStateName(targetSet);
-
-                // Is this a new DFA state?
-                if (!stateMap.containsKey(targetSet)) {
-                    stateMap.put(targetSet, targetName);
-                    worklist.add(targetSet);
-
-                    boolean isFinal = targetSet.stream()
-                            .anyMatch(s -> nfa.getFinalStateIds().contains(s));
-                    dfa.addState(new State(targetName, targetName, false, isFinal));
-                    if (isFinal) dfa.addFinalStateId(targetName);
-                }
-
-                // Add transition
-                dfa.addTransition(new Transition(currentName, stateMap.get(targetSet), symbol));
-
-                String desc = hasEpsilon
-                        ? "δ(" + currentName + ", " + symbol + ") = move → ε-closure = " + targetName
-                        : "δ(" + currentName + ", " + symbol + ") = " + targetName;
-
-                steps.add(new ConversionStep(stepNum++, Set.copyOf(targetSet),
-                        stateMap.get(targetSet), desc));
+        List<String> alphabet = src.getAlphabetComputed();
+        if (alphabet.isEmpty()) {
+            // Alphabet might be empty or specified on input
+            Set<String> explicitAlpha = src.getAlphabet();
+            if (!explicitAlpha.isEmpty()) {
+                alphabet = new ArrayList<>(explicitAlpha);
+                Collections.sort(alphabet);
             }
         }
 
+        Map<String, String> subsetMap = new LinkedHashMap<>();
+        List<List<String>> subsets = new ArrayList<>();
+        List<State> dfaStates = new ArrayList<>();
+        List<Transition> dfaTrans = new ArrayList<>();
+        Set<String> finalIds = src.getFinalStateIds();
+
+        // Key function: sorts state IDs to form a canonical string representation
+        java.util.function.Function<List<String>, String> key = sub -> {
+            List<String> sorted = new ArrayList<>(sub);
+            Collections.sort(sorted);
+            return String.join(",", sorted);
+        };
+
+        // Systematic state naming function: D0, D1, D2... with alphabetical labels A, B, C...
+        java.util.function.Function<List<String>, String> idOf = sub -> {
+            String k = key.apply(sub);
+            if (subsetMap.containsKey(k)) return subsetMap.get(k);
+            int idx = subsets.size();
+            String id = "D" + idx;
+            String label = String.valueOf((char) (65 + (idx % 26))) + (idx >= 26 ? (idx / 26) : "");
+            String fullName = label + " ({" + k + "})";
+
+            subsetMap.put(k, id);
+            subsets.add(sub);
+            dfaStates.add(new State(id, fullName, false, false));
+            return id;
+        };
+
+        // Initial DFA state: ε-closure of NFA start state
+        Set<String> startClosureSet = SimulationEngine.epsilonClosure(src, Set.of(startId));
+        List<String> initSet = new ArrayList<>(startClosureSet);
+        Collections.sort(initSet);
+
+        String startDfaId = idOf.apply(initSet);
+        int stepNum = 1;
+
+        steps.add(new ConversionStep(stepNum++, Set.copyOf(initSet), startDfaId,
+                "Initial DFA State " + startDfaId + " = ε-closure({" + startId + "}) = {" + String.join(", ", initSet) + "}"));
+
+        int si = 0;
+        while (si < subsets.size()) {
+            List<String> sub = subsets.get(si++);
+            String fromId = subsetMap.get(key.apply(sub));
+            State fromState = dfaStates.stream().filter(s -> s.id().equals(fromId)).findFirst().orElse(null);
+            String fromName = fromState != null ? fromState.name() : fromId;
+
+            for (String c : alphabet) {
+                Set<String> moved = SimulationEngine.move(src, sub, c);
+                Set<String> closed = SimulationEngine.epsilonClosure(src, moved);
+                List<String> nxt = new ArrayList<>(closed);
+                Collections.sort(nxt);
+
+                if (nxt.isEmpty()) {
+                    steps.add(new ConversionStep(stepNum++, Set.of(), "",
+                            "δ(" + fromId + " [" + fromName + "], '" + c + "') = ε-closure(Move({" + String.join(", ", sub) + "}, '" + c + "')) = ∅ (No transition)"));
+                    continue;
+                }
+
+                String toId = idOf.apply(nxt);
+                State toState = dfaStates.stream().filter(s -> s.id().equals(toId)).findFirst().orElse(null);
+                String toName = toState != null ? toState.name() : toId;
+
+                dfaTrans.add(new Transition(fromId, toId, c));
+
+                steps.add(new ConversionStep(stepNum++, Set.copyOf(nxt), toId,
+                        "δ(" + fromId + " [" + fromName + "], '" + c + "') = ε-closure(Move({" + String.join(", ", sub) + "}, '" + c + "')) = {" + String.join(", ", nxt) + "} → State " + toId + " [" + toName + "]"));
+            }
+        }
+
+        // Build final DFA Automaton systematically
+        Automaton dfa = new Automaton();
+        for (int i = 0; i < dfaStates.size(); i++) {
+            State s = dfaStates.get(i);
+            boolean isStart = s.id().equals(startDfaId);
+            boolean isFinal = subsets.get(i).stream().anyMatch(finalIds::contains);
+
+            dfa.addState(new State(s.id(), s.name(), isStart, isFinal));
+            if (isStart) dfa.setStartStateId(s.id());
+            if (isFinal) dfa.addFinalStateId(s.id());
+        }
+
+        for (String c : alphabet) {
+            dfa.addAlphabetSymbol(c);
+        }
+
+        for (Transition t : dfaTrans) {
+            dfa.addTransition(t);
+        }
+
         steps.add(new ConversionStep(stepNum, Set.of(), "",
-                "Subset construction complete. DFA has " + dfa.getStates().size() + " states."));
+                "Subset construction complete. Constructed DFA has " + dfa.getStates().size() + " states and " + dfa.getTransitions().size() + " transitions."));
 
         return new ConversionResult(dfa, steps);
-    }
-
-    // =========================================================================
-    // Utilities
-    // =========================================================================
-
-    /**
-     * Generates a DFA state name from a set of NFA state IDs.
-     * e.g. {q0, q1, q3} → "{q0,q1,q3}"
-     */
-    private static String dfaStateName(Set<String> nfaStates) {
-        if (nfaStates.isEmpty()) return "∅";
-        List<String> sorted = nfaStates.stream().sorted().toList();
-        return "{" + String.join(",", sorted) + "}";
     }
 }

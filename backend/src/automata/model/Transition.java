@@ -5,9 +5,8 @@ import java.util.Objects;
 /**
  * Represents a directed transition between two states on a given symbol.
  * The symbol "ε" denotes an epsilon (empty) transition.
- * Uses the default record equals/hashCode (all three components).
  */
-public record Transition(String sourceStateId, String targetStateId, String symbol) {
+public record Transition(String id, String sourceStateId, String targetStateId, String symbol) {
 
     /** The canonical string used for epsilon transitions. */
     public static final String EPSILON = "ε";
@@ -16,6 +15,24 @@ public record Transition(String sourceStateId, String targetStateId, String symb
         Objects.requireNonNull(sourceStateId, "sourceStateId must not be null");
         Objects.requireNonNull(targetStateId, "targetStateId must not be null");
         Objects.requireNonNull(symbol, "symbol must not be null");
+        if (id == null || id.isBlank()) {
+            id = "t_" + sourceStateId + "_" + symbol + "_" + targetStateId;
+        }
+    }
+
+    /** Constructor without explicit id (auto-generates systematic id). */
+    public Transition(String sourceStateId, String targetStateId, String symbol) {
+        this("t_" + sourceStateId + "_" + symbol + "_" + targetStateId, sourceStateId, targetStateId, symbol);
+    }
+
+    /** Alias for sourceStateId (for JS compatibility). */
+    public String from() {
+        return sourceStateId;
+    }
+
+    /** Alias for targetStateId (for JS compatibility). */
+    public String to() {
+        return targetStateId;
     }
 
     /** Returns {@code true} if this is an epsilon transition. */
@@ -23,12 +40,20 @@ public record Transition(String sourceStateId, String targetStateId, String symb
         return EPSILON.equals(symbol);
     }
 
+    /** Returns a systematic string representation of the transition. */
+    public String toFormattedString() {
+        return "%s --%s--> %s".formatted(sourceStateId, symbol, targetStateId);
+    }
+
     // --- JSON serialization ----------------------------------------------------
 
     public String toJson() {
         return """
-               {"sourceStateId":"%s","targetStateId":"%s","symbol":"%s"}\
+               {"id":"%s","from":"%s","to":"%s","sourceStateId":"%s","targetStateId":"%s","symbol":"%s"}\
                """.formatted(
+                escapeJson(id),
+                escapeJson(sourceStateId),
+                escapeJson(targetStateId),
                 escapeJson(sourceStateId),
                 escapeJson(targetStateId),
                 escapeJson(symbol)
