@@ -114,13 +114,3 @@ docker run -d -p 8080:8080 --name nfa-dfa-app nfa-dfa-visualizer
 Access the application at `http://localhost:8080`.
 
 ---
-
-## Deploying to Render
-
-This project is pre-configured for automatic deployment on **Render**:
-
-1. Push your repository to **GitHub** / **GitLab**.
-2. Log into [Render Dashboard](https://dashboard.render.com/).
-3. Click **New +** -> **Web Service** (or **Blueprint**).
-4. Connect your repository. Render will automatically detect the `Dockerfile` and `render.yaml` blueprint.
-5. Click **Deploy**. Render will build and host your service live with HTTPS!
