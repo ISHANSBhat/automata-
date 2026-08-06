@@ -111,6 +111,6 @@ docker build -t nfa-dfa-visualizer .
 ```bash
 docker run -d -p 8080:8080 --name nfa-dfa-app nfa-dfa-visualizer
 ```
-Access the application at `http://localhost:8080`.
+Access the application at `http://localhost:12002`.
 
 ---
